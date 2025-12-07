@@ -68,7 +68,60 @@ public class GoogleDriveService {
     }
 
     public String getThumbnailUrl(String fileId) {
-        return String.format("https://drive.google.com/thumbnail?id=%s&sz=w400", fileId);
+        // Pentru fișiere private, folosim URL-ul cu export=view și parametru sz pentru dimensiune
+        // Acest URL funcționează mai bine pentru fișiere private decât thumbnail standard
+        return String.format("https://drive.google.com/uc?export=view&id=%s&sz=w400", fileId);
+    }
+
+    /**
+     * Obține URL-ul thumbnail-ului pentru un fișier
+     * @param fileId ID-ul fișierului
+     * @return URL-ul thumbnail-ului sau null dacă nu există
+     */
+    public String getThumbnailLink(String fileId) throws IOException {
+        try {
+            com.google.api.services.drive.model.File file = driveService.files().get(fileId)
+                    .setFields("thumbnailLink")
+                    .execute();
+            return file.getThumbnailLink();
+        } catch (Exception e) {
+            log.warn("Nu s-a putut obține thumbnail link pentru fișierul {}", fileId, e);
+            return null;
+        }
+    }
+    
+    /**
+     * Descarcă conținutul unui fișier din Google Drive (pentru proxy)
+     * @param fileId ID-ul fișierului
+     * @return Byte array cu conținutul fișierului
+     * @throws IOException dacă apare o eroare la descărcare
+     */
+    public byte[] downloadFile(String fileId) throws IOException {
+        try {
+            return driveService.files().get(fileId)
+                    .executeMediaAsInputStream()
+                    .readAllBytes();
+        } catch (Exception e) {
+            log.error("Eroare la descărcarea fișierului {}", fileId, e);
+            throw new IOException("Nu s-a putut descărca fișierul: " + fileId, e);
+        }
+    }
+
+    /**
+     * Obține numele unui fișier din Google Drive
+     * @param fileId ID-ul fișierului
+     * @return Numele fișierului sau null dacă apare o eroare
+     */
+    public String getFileName(String fileId) {
+        try {
+            com.google.api.services.drive.model.File file = driveService.files().get(fileId)
+                    .setFields("name")
+                    .execute();
+            return file.getName();
+        } catch (Exception e) {
+            log.warn("Nu s-a putut obține numele fișierului {}", fileId, e);
+            return null;
+        }
     }
 }
 

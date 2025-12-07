@@ -12,9 +12,9 @@ interface GalleryPageProps {
 
 /**
  * Pagina pentru afișarea galeriei foto
- * 
+ *
  * Route: /gallery/[code]
- * 
+ *
  * Afișează toate pozele dintr-un eveniment după codul unic
  */
 export default async function GalleryPage({ params }: GalleryPageProps) {
@@ -28,16 +28,18 @@ export default async function GalleryPage({ params }: GalleryPageProps) {
         {/* Header Section pentru Galerie */}
         <div className="bg-[#1e1e1e] text-[#d4af37] py-8">
           <div className="container mx-auto px-4">
-            <Link
-              href="/"
-              className="inline-block mb-4 text-[#d4af37] hover:text-[#f5e6ca] transition-colors"
-            >
-              ← Înapoi la Home
-            </Link>
-            <h1 className="text-4xl md:text-5xl font-bold mb-2">{gallery.name}</h1>
-            {gallery.description && (
-              <p className="text-lg text-[#f5e6ca]">{gallery.description}</p>
-            )}
+            <div className="flex items-center gap-3 mb-4 ">
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center text-[#d4af37] hover:text-[#f5e6ca] transition-colors text-2xl font-bold mb-3"
+                title="Înapoi la Home"
+              >
+                ←
+              </Link>
+              <span className="text-4xl md:text-2xl font-bold mb-2">
+                Evenimente <span className="font-mono">{code}</span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -71,4 +73,3 @@ export async function generateMetadata({ params }: GalleryPageProps) {
     };
   }
 }
-

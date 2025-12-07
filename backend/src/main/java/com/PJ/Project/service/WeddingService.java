@@ -73,8 +73,15 @@ public class WeddingService {
         
         List<Photo> photos = driveFiles.stream()
                 .map(driveFile -> {
-                    String viewUrl = googleDriveService.getFileViewUrl(driveFile.getId(), driveFile.getWebContentLink());
-                    String thumbnailUrl = googleDriveService.getThumbnailUrl(driveFile.getId());
+                    // Pentru imagini complete, folosim endpoint proxy în backend
+                    // Acest endpoint va servi imaginile cu autentificare
+                    String viewUrl = String.format("/api/gallery/image/%s", driveFile.getId());
+                    // Pentru thumbnail-uri, folosim un endpoint proxy în backend
+                    // Acest endpoint va servi thumbnail-urile cu autentificare
+                    String thumbnailUrl = String.format("/api/gallery/thumbnail/%s", driveFile.getId());
+                    
+                    log.debug("Foto: {} - URL: {} - Thumbnail: {}", 
+                            driveFile.getName(), viewUrl, thumbnailUrl);
                     
                     return Photo.builder()
                             .filename(driveFile.getName())

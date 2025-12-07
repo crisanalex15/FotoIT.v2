@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import GallerySwiper from "@/components/gallery/GallerySwiper";
+
+// Înregistrează ScrollTrigger
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 /**
  * Pagina Principală - Design original FotoIT
@@ -49,7 +56,25 @@ export default function Home() {
 
         {/* Content */}
         <div className="relative z-10 text-center px-4">
-          <div className="mb-8">
+          <div
+            className="mb-8"
+            ref={(el) => {
+              if (el) {
+                gsap.fromTo(
+                  el.children,
+                  { opacity: 0, y: 50 },
+                  {
+                    opacity: 1,
+                    y: 0,
+                    duration: 1.2,
+                    stagger: 0.2,
+                    ease: "power3.out",
+                    delay: 1,
+                  }
+                );
+              }
+            }}
+          >
             <h3 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-4 font-['Dancing_Script'] drop-shadow-2xl">
               Prinde Momente
             </h3>
@@ -57,13 +82,28 @@ export default function Home() {
               Modelează Amintiri
             </h3>
           </div>
-          <p className="text-xl md:text-2xl text-[#f5e6ca] mt-8 max-w-2xl mx-auto">
-            Fotografie de evenimente și portrete
-          </p>
+          <p className="text-xl md:text-2xl text-[#f5e6ca] mt-8 max-w-2xl mx-auto"></p>
         </div>
 
-        {/* Decorative elements */}
-        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 w-1 h-24 bg-gradient-to-b from-[#d4af37] to-transparent" />
+        {/* Decorative elements cu animatie GSAP */}
+        <div
+          className="absolute bottom-20 left-1/2 transform -translate-x-1/2 w-1 h-36 bg-gradient-to-b from-[#d4af37] to-transparent"
+          ref={(el) => {
+            if (el) {
+              // Animatie: de jos in sus + fade-in
+              gsap.fromTo(
+                el,
+                { opacity: 0, y: 150 },
+                {
+                  opacity: 1,
+                  y: 0,
+                  duration: 1,
+                  ease: "ease-in-out",
+                }
+              );
+            }
+          }}
+        />
       </section>
 
       {/* Despre Section */}
@@ -132,7 +172,7 @@ export default function Home() {
             <h1 className="text-5xl md:text-5xl font-bold mb-4 text-[#1e1e1e]">
               Galerie
             </h1>
-            <div className="absolute top-[150px] left-1/2 transform -translate-x-1/2 w-1 h-24 bg-gradient-to-b from-[#d4af37] to-transparent" />
+            <div className="absolute top-[135px] left-1/2 transform -translate-x-1/2 w-1 h-10 bg-gradient-to-b from-[#d4af37] to-transparent" />
           </div>
 
           {/* Gallery Swiper */}

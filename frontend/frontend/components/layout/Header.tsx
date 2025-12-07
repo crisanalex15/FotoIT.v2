@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+// Înregistrează ScrollTrigger
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 /**
  * Header - Header-ul principal în stilul original FotoIT
@@ -41,50 +48,85 @@ export default function Header() {
       <header className="relative bg-[#1e1e1e] text-[#d4af37] py-2.5 px-[10%] z-10">
         <div className="max-w-[70vw] mx-auto flex justify-between items-center">
           {/* Logo FotoIT */}
-          <Link href="/" className="flex items-center">
-            <img
-              src="/logo-fotoit.png"
-              alt="FotoIT"
-              className="h-[10vh] w-auto max-h-[50px] max-w-full"
-              onError={(e) => {
-                // Fallback dacă logo-ul nu există
-                (e.target as HTMLImageElement).style.display = "none";
-                const parent = (e.target as HTMLImageElement).parentElement;
-                if (parent) {
-                  parent.innerHTML =
-                    '<span class="text-2xl font-bold">FotoIT</span>';
-                }
-              }}
-            />
-          </Link>
+          {(() => {
+            const logoRef = useRef<HTMLAnchorElement>(null);
+            useEffect(() => {
+              if (logoRef.current) {
+                gsap.fromTo(
+                  logoRef.current,
+                  { opacity: 0, y: -30, scale: 0.95 },
+                  {
+                    opacity: 1,
+                    y: 0,
+                    scale: 1,
+                    duration: 0.8,
+                    ease: "power3.out",
+                  }
+                );
+              }
+            }, []);
+            return (
+              <Link href="/" className="flex items-center" ref={logoRef}>
+                <img
+                  src="/logo-fotoit.png"
+                  alt="FotoIT"
+                  className="h-[10vh] w-auto max-h-[50px] max-w-full"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    const parent = (e.target as HTMLImageElement).parentElement;
+                    if (parent) {
+                      parent.innerHTML =
+                        '<span class="text-2xl font-bold">FotoIT</span>';
+                    }
+                  }}
+                />
+              </Link>
+            );
+          })()}
 
           {/* Navigare */}
-          <nav className="flex items-center gap-8">
-            <Link
-              href="/"
-              className="text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-[26px]"
-            >
-              ACASA
-            </Link>
-            <Link
-              href="/#despre"
-              className="text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-[26px]"
-            >
-              DESPRE
-            </Link>
-            <Link
-              href="/#contact"
-              className="text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-[26px]"
-            >
-              CONTACT
-            </Link>
-            <button
-              onClick={() => setShowCodeModal(true)}
-              className="text-2xl font-bold text-[#d4af37] bg-transparent border-2 border-[#d4af37] px-4 py-2 rounded-lg transition-all hover:bg-[#d4af37] hover:text-[#1e1e1e]"
-            >
-              GALERIE
-            </button>
-          </nav>
+          {(() => {
+            const navRef = useRef<HTMLDivElement>(null);
+            useEffect(() => {
+              if (navRef.current) {
+                // Animatie pentru fiecare copil (buton)
+                gsap.fromTo(
+                  navRef.current.children,
+                  { opacity: 0, y: -30 },
+                  {
+                    opacity: 1,
+                    y: 0,
+                    duration: 0.8,
+                    stagger: 0.15,
+                    ease: "power3.out",
+                    delay: 0.2,
+                  }
+                );
+              }
+            }, []);
+            return (
+              <nav className="flex items-center gap-8" ref={navRef}>
+                <Link
+                  href="/#despre"
+                  className="text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-[26px]"
+                >
+                  DESPRE
+                </Link>
+                <Link
+                  href="/#contact"
+                  className="text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-[26px]"
+                >
+                  CONTACT
+                </Link>
+                <button
+                  onClick={() => setShowCodeModal(true)}
+                  className="text-2xl font-bold text-[#d4af37] bg-transparent border-2 border-[#d4af37] px-4 py-2 rounded-lg transition-all hover:bg-[#d4af37] hover:text-[#1e1e1e]"
+                >
+                  GALERIE
+                </button>
+              </nav>
+            );
+          })()}
         </div>
       </header>
 
