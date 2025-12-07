@@ -55,7 +55,7 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 text-center px-4">
+        <div className="relative z-10 text-center px-4 py-24">
           <div
             className="mb-8"
             ref={(el) => {
@@ -109,7 +109,7 @@ export default function Home() {
       {/* Despre Section */}
       <section
         id="despre"
-        className="relative min-h-[60vh] flex items-center bg-gradient-to-b from-[#f4f4f4] to-white py-20"
+        className="relative min-h-[60vh] flex items-center bg-gradient-to-b from-[#f4f4f4] to-white py-20 overflow-hidden"
         ref={(el) => {
           if (el) {
             const line = el.querySelector(".about-line");
@@ -244,17 +244,114 @@ export default function Home() {
       </section>
 
       {/* Galerie Preview Section */}
-      <section className="relative min-h-[80vh] py-20 bg-gradient-to-b from-white via-[#fafafa] to-[#f4f4f4]">
+      <section
+        className="relative min-h-[80vh] py-20 bg-gradient-to-b from-white via-[#fafafa] to-[#f4f4f4] overflow-hidden"
+        ref={(el) => {
+          if (el) {
+            const title = el.querySelector(".gallery-title");
+            const swiperContainer = el.querySelector(
+              ".gallery-swiper-container"
+            );
+
+            if (title && swiperContainer) {
+              // Timeline pentru animații
+              const tl = gsap.timeline({
+                scrollTrigger: {
+                  trigger: el,
+                  start: "top 70%",
+                  toggleActions: "play none none reverse",
+                },
+              });
+
+              // 1. Typing animation pentru "Galerie"
+              const text = "Galerie";
+              const chars = text.split("");
+              const originalText = title.textContent || "";
+
+              // Doar dacă nu a fost deja animat
+              if (title.children.length === 0) {
+                title.innerHTML = ""; // Golește conținutul
+
+                chars.forEach((char) => {
+                  const span = document.createElement("span");
+                  span.textContent = char === " " ? "\u00A0" : char;
+                  span.style.opacity = "0";
+                  title.appendChild(span);
+
+                  tl.to(span, {
+                    opacity: 1,
+                    duration: 0.2,
+                    ease: "power2.out",
+                  });
+                });
+              }
+
+              // 2. Animație pentru pozele din swiper - apar din centru și se expandează
+              // Așteaptă puțin pentru ca Swiper să se inițializeze
+              setTimeout(() => {
+                const swiperWrapper =
+                  swiperContainer.querySelector(".swiper-wrapper");
+                const slides =
+                  swiperWrapper?.querySelectorAll(".swiper-slide") || [];
+                const navButtons =
+                  swiperContainer.querySelectorAll("button[aria-label]");
+
+                if (slides.length > 0) {
+                  // Setează poziția inițială - toate în centru (scale 0, opacity 0)
+                  gsap.set(slides, {
+                    scale: 0,
+                    opacity: 0,
+                  });
+
+                  // Setează butoanele de navigare inițial (opacity 0)
+                  if (navButtons.length > 0) {
+                    gsap.set(navButtons, {
+                      opacity: 0,
+                      scale: 0.8,
+                    });
+                  }
+
+                  // Animează către pozițiile finale cu stagger
+                  tl.to(
+                    slides,
+                    {
+                      scale: 1,
+                      opacity: 1,
+                      duration: 0.6,
+                      stagger: 0.1,
+                      ease: "back.out(1.7)",
+                      delay: 0.2,
+                    },
+                    "-=0.3"
+                  )
+                    // 3. Apoi apar butoanele de navigare
+                    .to(
+                      navButtons,
+                      {
+                        opacity: 1,
+                        scale: 1,
+                        duration: 0.5,
+                        stagger: 0.1,
+                        ease: "power2.out",
+                      },
+                      "-=0.3"
+                    );
+                }
+              }, 200);
+            }
+          }
+        }}
+      >
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h1 className="text-5xl md:text-5xl font-bold mb-4 text-[#1e1e1e]">
+            <h1 className="gallery-title text-5xl md:text-5xl font-bold mb-4 text-[#1e1e1e]">
               Galerie
             </h1>
             <div className="absolute top-[135px] left-1/2 transform -translate-x-1/2 w-1 h-10 bg-gradient-to-b from-[#d4af37] to-transparent" />
           </div>
 
           {/* Gallery Swiper */}
-          <div className="mb-12">
+          <div className="mb-12 gallery-swiper-container">
             <GallerySwiper />
           </div>
 
@@ -294,7 +391,7 @@ export default function Home() {
       {/* Contact Section / Footer */}
       <section
         id="contact"
-        className="relative bg-gradient-to-b from-[#1e1e1e] to-[#0f0f0f] text-[#d4af37] py-16"
+        className="relative bg-gradient-to-b from-[#1e1e1e] to-[#0f0f0f] text-[#d4af37] py-16 overflow-hidden"
       >
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
