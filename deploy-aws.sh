@@ -40,6 +40,56 @@ fi
 # Setează permisiunile corecte pentru cheia SSH
 chmod 400 "$SSH_KEY"
 
+# Verifică fișierele necesare
+echo -e "${YELLOW}[0/11] Verificare fișiere necesare...${NC}"
+MISSING_FILES=0
+
+# Verifică fișierul de credențiale Google Drive
+CREDENTIALS_FILE="backend/src/main/resources/fotoit-gallery-credentials.json"
+if [ ! -f "$CREDENTIALS_FILE" ]; then
+    echo -e "${RED}⚠️  ATENȚIE: Fișierul de credențiale Google Drive nu a fost găsit!${NC}"
+    echo -e "${YELLOW}   Cale așteptată: $CREDENTIALS_FILE${NC}"
+    echo -e "${YELLOW}   Backend-ul va funcționa, dar Google Drive Service nu va fi disponibil.${NC}"
+    echo -e "${YELLOW}   Poți adăuga fișierul mai târziu și să repornești backend-ul.${NC}"
+    MISSING_FILES=1
+else
+    echo -e "${GREEN}✓ Fișier credențiale Google Drive găsit${NC}"
+fi
+
+# Verifică structura proiectului
+if [ ! -d "backend" ]; then
+    echo -e "${RED}Eroare: Directorul 'backend' nu există!${NC}"
+    echo "Rulează scriptul din directorul root al proiectului."
+    exit 1
+fi
+
+if [ ! -d "frontend/frontend" ]; then
+    echo -e "${RED}Eroare: Directorul 'frontend/frontend' nu există!${NC}"
+    echo "Rulează scriptul din directorul root al proiectului."
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Structură proiect verificată${NC}"
+
+if [ $MISSING_FILES -eq 1 ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  Continuă deployment-ul fără credențiale Google Drive?${NC}"
+    echo -e "${YELLOW}   (Backend-ul va funcționa, dar Google Drive Service nu va fi disponibil)${NC}"
+    echo ""
+    # Dacă rulează într-un mediu non-interactiv, continuă automat
+    if [ -t 0 ]; then
+        read -r -p "Continuă? (y/n): " response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "Deployment anulat."
+            exit 1
+        fi
+    else
+        echo -e "${YELLOW}Mediu non-interactiv detectat. Continuă automat...${NC}"
+        sleep 2
+    fi
+fi
+
+echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Deployment FotoIT pe AWS EC2${NC}"
 echo -e "${BLUE}========================================${NC}"
@@ -58,47 +108,55 @@ copy_to_remote() {
     scp -i "$SSH_KEY" -o StrictHostKeyChecking=no -r "$1" "$SSH_USER@$EC2_IP:$2"
 }
 
-echo -e "${YELLOW}[1/10] Conectare la EC2 și verificare sistem...${NC}"
+echo -e "${YELLOW}[1/11] Conectare la EC2 și verificare sistem...${NC}"
 run_remote "echo 'Conectat cu succes!'"
 
-echo -e "${YELLOW}[2/10] Actualizare sistem și instalare dependențe...${NC}"
+echo -e "${YELLOW}[2/11] Actualizare sistem și instalare dependențe...${NC}"
 run_remote "sudo apt-get update -y"
 run_remote "sudo apt-get install -y curl wget git unzip software-properties-common"
 
-echo -e "${YELLOW}[3/10] Instalare Java 21 (LTS)...${NC}"
+echo -e "${YELLOW}[3/11] Instalare Java 21 (LTS)...${NC}"
 run_remote "sudo apt-get install -y openjdk-21-jdk || sudo apt-get install -y default-jdk"
 run_remote "java -version"
 
-echo -e "${YELLOW}[4/10] Instalare Maven...${NC}"
+echo -e "${YELLOW}[4/11] Instalare Maven...${NC}"
 run_remote "sudo apt-get install -y maven"
 run_remote "mvn -version"
 
-echo -e "${YELLOW}[5/10] Instalare Node.js 20.x...${NC}"
+echo -e "${YELLOW}[5/11] Instalare Node.js 20.x...${NC}"
 run_remote "curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
 run_remote "sudo apt-get install -y nodejs"
 run_remote "node --version && npm --version"
 
-echo -e "${YELLOW}[6/10] Instalare PM2 pentru Next.js...${NC}"
+echo -e "${YELLOW}[6/11] Instalare PM2 pentru Next.js...${NC}"
 run_remote "sudo npm install -g pm2"
 
-echo -e "${YELLOW}[7/10] Instalare și configurare Nginx...${NC}"
+echo -e "${YELLOW}[7/11] Instalare și configurare Nginx...${NC}"
 run_remote "sudo apt-get install -y nginx"
 run_remote "sudo systemctl enable nginx"
 
-echo -e "${YELLOW}[8/10] Creare structură directoare pe server...${NC}"
+echo -e "${YELLOW}[8/11] Creare structură directoare pe server...${NC}"
 run_remote "sudo mkdir -p /opt/fotoit/{backend,frontend,logs}"
 run_remote "sudo chown -R $SSH_USER:$SSH_USER /opt/fotoit"
 
-echo -e "${YELLOW}[9/10] Copiere cod backend și frontend...${NC}"
-echo "Copiere backend..."
+echo -e "${YELLOW}[9/11] Copiere cod backend și frontend (inclusiv credențiale)...${NC}"
+echo "Copiere backend (inclusiv toate fișierele de configurare)..."
 run_remote "rm -rf /opt/fotoit/backend/*"
 copy_to_remote "backend/" "/opt/fotoit/backend/"
+
+# Verifică dacă credențialele au fost copiate
+echo "Verificare credențiale Google Drive..."
+run_remote "if [ -f '/opt/fotoit/backend/src/main/resources/fotoit-gallery-credentials.json' ]; then
+    echo '✓ Credențiale Google Drive copiate cu succes'
+else
+    echo '⚠️  Credențiale Google Drive nu au fost găsite - va trebui să le adaugi manual'
+fi"
 
 echo "Copiere frontend..."
 run_remote "rm -rf /opt/fotoit/frontend/*"
 copy_to_remote "frontend/frontend/" "/opt/fotoit/frontend/"
 
-echo -e "${YELLOW}[10/10] Build și configurare aplicații...${NC}"
+echo -e "${YELLOW}[10/11] Build și configurare aplicații...${NC}"
 
 # Build backend
 echo "Building backend..."
@@ -223,6 +281,16 @@ run_remote "sudo systemctl restart nginx"
 echo "Așteptare pornire backend..."
 sleep 10
 
+# Verificare finală credențiale
+echo ""
+echo -e "${YELLOW}Verificare finală configurare...${NC}"
+if run_remote "[ -f '/opt/fotoit/backend/src/main/resources/fotoit-gallery-credentials.json' ]"; then
+    echo -e "${GREEN}✓ Credențiale Google Drive: Configurate${NC}"
+else
+    echo -e "${YELLOW}⚠️  Credențiale Google Drive: Lipsesc (poți adăuga manual mai târziu)${NC}"
+    echo -e "${YELLOW}   Cale: /opt/fotoit/backend/src/main/resources/fotoit-gallery-credentials.json${NC}"
+fi
+
 # Verificare status
 echo ""
 echo -e "${BLUE}========================================${NC}"
@@ -240,19 +308,32 @@ run_remote "sudo systemctl status nginx --no-pager | head -5"
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  Deployment Complet!${NC}"
+echo -e "${GREEN}  ✅ Deployment Complet!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "${GREEN}Aplicația este disponibilă la:${NC}"
-echo -e "  Frontend: ${BLUE}http://$EC2_IP${NC}"
-echo -e "  Backend API: ${BLUE}http://$EC2_IP/api${NC}"
-echo -e "  Swagger UI: ${BLUE}http://$EC2_IP/swagger-ui.html${NC}"
+echo -e "${GREEN}🎉 Aplicația este disponibilă la:${NC}"
+echo -e "  🌐 Frontend: ${BLUE}http://$EC2_IP${NC}"
+echo -e "  🔌 Backend API: ${BLUE}http://$EC2_IP/api${NC}"
+echo -e "  📚 Swagger UI: ${BLUE}http://$EC2_IP/swagger-ui.html${NC}"
 echo ""
-echo -e "${YELLOW}Comenzi utile:${NC}"
-echo "  Verificare logs backend: ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'sudo journalctl -u fotoit-backend -f'"
-echo "  Verificare logs frontend: ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'pm2 logs fotoit-frontend'"
-echo "  Restart backend: ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'sudo systemctl restart fotoit-backend'"
-echo "  Restart frontend: ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'pm2 restart fotoit-frontend'"
-echo "  Restart nginx: ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'sudo systemctl restart nginx'"
+echo -e "${YELLOW}📋 Comenzi utile:${NC}"
+echo "  📊 Verificare logs backend:"
+echo "     ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'sudo journalctl -u fotoit-backend -f'"
+echo ""
+echo "  📊 Verificare logs frontend:"
+echo "     ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'pm2 logs fotoit-frontend'"
+echo ""
+echo "  🔄 Restart backend:"
+echo "     ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'sudo systemctl restart fotoit-backend'"
+echo ""
+echo "  🔄 Restart frontend:"
+echo "     ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'pm2 restart fotoit-frontend'"
+echo ""
+echo "  🔄 Restart nginx:"
+echo "     ssh -i $SSH_KEY $SSH_USER@$EC2_IP 'sudo systemctl restart nginx'"
+echo ""
+echo -e "${GREEN}💡 Notă:${NC} Toate fișierele de configurare și credențiale au fost copiate automat!"
+echo ""
+echo -e "${GREEN}💡 Notă:${NC} Toate fișierele de configurare și credențiale au fost copiate automat!"
 echo ""
 
