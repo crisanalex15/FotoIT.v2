@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f4f4;
+  --foreground: #1e1e1e;
+  --gold: #d4af37;
+  --gold-light: #f5e6ca;
+  --gold-dark: #b8922d;
+  --dark: #1e1e1e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-gold-dark: var(--gold-dark);
+  --color-dark: var(--dark);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Playfair Display", serif;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gold);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-dark);
+}
+
+/* Swiper Gallery Styles */
+.gallery-swiper {
+  padding: 20px 0 60px 0;
+}
+
+.gallery-swiper .swiper-slide {
+  height: auto;
+}
+
+.gallery-swiper .swiper-button-prev-custom,
+.gallery-swiper .swiper-button-next-custom {
+  position: static;
+  margin: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.gallery-swiper .swiper-button-prev-custom:hover,
+.gallery-swiper .swiper-button-next-custom:hover {
+  background: var(--gold-dark);
+  transform: scale(1.1);
+}
+
+.gallery-swiper .swiper-button-prev-custom::after,
+.gallery-swiper .swiper-button-next-custom::after {
+  display: none;
+}
