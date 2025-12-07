@@ -110,12 +110,90 @@ export default function Home() {
       <section
         id="despre"
         className="relative min-h-[60vh] flex items-center bg-gradient-to-b from-[#f4f4f4] to-white py-20"
+        ref={(el) => {
+          if (el) {
+            const line = el.querySelector(".about-line");
+            const image = el.querySelector(".about-image");
+            const text = el.querySelector(".about-text");
+
+            if (line && image && text) {
+              // Timeline pentru animație secvențială
+              const tl = gsap.timeline({
+                scrollTrigger: {
+                  trigger: el,
+                  start: "top 70%",
+                  toggleActions: "play none none reverse",
+                },
+              });
+
+              // 1. Linia: începe verticală cu înălțime mare
+              gsap.set(line, {
+                opacity: 0,
+                y: -200,
+                width: "1px",
+                height: "400px",
+              });
+
+              // Pasul 1: Linia apare cu înălțime mare (verticală), se mișcă în jos
+              tl.to(line, {
+                height: "1px",
+                opacity: 1,
+                y: 0,
+                duration: 1,
+                ease: "power2.out",
+              })
+                // Pasul 2: Scade înălțimea la valoarea pentru linia orizontală
+                .to(line, {
+                  height: "1px",
+                  duration: 0.2,
+                  ease: "power2.inOut",
+                })
+                // Pasul 3: Se extinde lateral (width crește)
+                .to(line, {
+                  width: "400px",
+                  duration: 0.6,
+                  ease: "power2.inOut",
+                })
+                // 2. Apoi apare poza
+                .fromTo(
+                  image,
+                  {
+                    left: "100px",
+                    opacity: 0,
+                    scale: 0.8,
+                    y: 30,
+                  },
+                  {
+                    left: "0",
+                    opacity: 1,
+                    scale: 1,
+                    y: 0,
+                    duration: 0.8,
+                    ease: "power2.out",
+                  },
+                  "-=0.3"
+                )
+                // 3. Apoi apare textul
+                .fromTo(
+                  text,
+                  { opacity: 0, x: 50 },
+                  {
+                    opacity: 1,
+                    x: 0,
+                    duration: 0.8,
+                    ease: "power2.out",
+                  },
+                  "-=0.4"
+                );
+            }
+          }
+        }}
       >
         <div className="container mx-auto px-4">
           <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
             {/* Profil Image */}
             <div className="flex justify-center">
-              <div className="relative">
+              <div className="relative about-image">
                 <div className="absolute inset-0 bg-[#d4af37] rounded-full blur-2xl opacity-30 transform scale-110" />
                 <img
                   src="/profil.jpg"
@@ -135,7 +213,7 @@ export default function Home() {
             </div>
 
             {/* Text Despre */}
-            <div className="text-[#1e1e1e]">
+            <div className="text-[#1e1e1e] about-text">
               <h1 className="text-4xl md:text-5xl font-bold mb-6 text-[#1e1e1e]">
                 Bună, sunt{" "}
                 <span className="text-[#d4af37] font-['Dancing_Script']">
@@ -162,7 +240,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className="absolute left-1/2 bottom-12 transform -translate-x-1/2 h-1 w-[400px] bg-gradient-to-r from-transparent via-[#d4af37] to-transparent" />
+        <div className="about-line absolute left-1/2 bottom-12 transform -translate-x-1/2 h-1 w-[400px] bg-gradient-to-r from-transparent via-[#d4af37] to-transparent" />
       </section>
 
       {/* Galerie Preview Section */}
