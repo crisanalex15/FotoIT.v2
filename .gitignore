@@ -1,0 +1,22 @@
+# Build outputs
+**/target/
+**/node_modules/
+**/.idea/
+
+# Database files
+**/*.db
+**/*.sqlite
+
+# Google Drive credentials
+**/fotoit-gallery-*.json
+**/*credentials*.json
+**/*service-account*.json
+
+# Environment files
+**/.env*
+**/.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+

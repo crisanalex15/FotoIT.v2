@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard - FotoIT</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+</head>
+<body>
+    <div class="container">
+        <h1>📸 FotoIT - Admin Dashboard</h1>
+        
+        <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+        <div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
+        
+        <div class="create-form">
+            <h2>Creează Eveniment Nou</h2>
+            <form th:action="@{/admin/create}" method="post">
+                <div class="form-group">
+                    <label>Google Drive Folder ID:</label>
+                    <input type="text" name="googleFolderId" required placeholder="1VO-g9pYA8KlF0lHofwrFqPwCpuD--yPF">
+                </div>
+                <div class="form-group">
+                    <label>Tip Eveniment:</label>
+                    <select name="eventType" required>
+                        <option value="WEDDING">💒 Nuntă</option>
+                        <option value="SWEET_16">🎂 Majorată</option>
+                        <option value="EVENT">🎉 Eveniment</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Nume Eveniment (opțional):</label>
+                    <input type="text" name="name" placeholder="Nunta Maria & Ion">
+                </div>
+                <div class="form-group">
+                    <label>Descriere (opțional):</label>
+                    <textarea name="description" rows="3"></textarea>
+                </div>
+                <button type="submit">Creează Eveniment</button>
+            </form>
+        </div>
+        
+        <div class="weddings-list">
+            <h2>Evenimente Existente</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cod</th>
+                        <th>Tip</th>
+                        <th>Nume</th>
+                        <th>Poze</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="wedding : ${weddings}">
+                        <td th:text="${wedding.code}"></td>
+                        <td>
+                            <span th:if="${wedding.eventType.name() == 'WEDDING'}" class="badge badge-wedding">💒 Nuntă</span>
+                            <span th:if="${wedding.eventType.name() == 'SWEET_16'}" class="badge badge-sweet16">🎂 Majorată</span>
+                            <span th:if="${wedding.eventType.name() == 'EVENT'}" class="badge badge-event">🎉 Eveniment</span>
+                        </td>
+                        <td th:text="${wedding.name}"></td>
+                        <td th:text="${wedding.photos.size()}"></td>
+                        <td>
+                            <a th:href="@{/admin/{id}(id=${wedding.id})}" class="btn btn-info">Detalii</a>
+                            <form th:action="@{/admin/{id}/sync(id=${wedding.id})}" method="post" style="display:inline;">
+                                <button type="submit" class="btn btn-sync">🔄 Sync</button>
+                            </form>
+                            <form th:action="@{/admin/{id}/delete(id=${wedding.id})}" method="post" style="display:inline;" 
+                                  onsubmit="return confirm('Ești sigur că vrei să ștergi acest eveniment?');">
+                                <button type="submit" class="btn btn-danger">🗑️ Șterge</button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
+

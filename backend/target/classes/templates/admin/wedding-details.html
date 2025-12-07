@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalii Eveniment - FotoIT</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+</head>
+<body>
+    <div class="container">
+        <a th:href="@{/admin}" class="back-link">← Înapoi la Dashboard</a>
+        
+        <h1 th:text="${wedding.name}"></h1>
+        
+        <div class="details">
+            <p><strong>Cod:</strong> <span th:text="${wedding.code}"></span></p>
+            <p><strong>Tip:</strong> 
+                <span th:if="${wedding.eventType.name() == 'WEDDING'}" class="badge badge-wedding">💒 Nuntă</span>
+                <span th:if="${wedding.eventType.name() == 'SWEET_16'}" class="badge badge-sweet16">🎂 Majorată</span>
+                <span th:if="${wedding.eventType.name() == 'EVENT'}" class="badge badge-event">🎉 Eveniment</span>
+            </p>
+            <p><strong>Google Folder ID:</strong> <span th:text="${wedding.googleFolderId}"></span></p>
+            <p th:if="${wedding.description}"><strong>Descriere:</strong> <span th:text="${wedding.description}"></span></p>
+            <p><strong>Total Poze:</strong> <span th:text="${wedding.photos.size()}"></span></p>
+        </div>
+        
+        <div class="actions">
+            <form th:action="@{/admin/{id}/sync(id=${wedding.id})}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-sync">🔄 Sincronizează Poze</button>
+            </form>
+            <form th:action="@{/admin/{id}/delete(id=${wedding.id})}" method="post" style="display:inline;" 
+                  onsubmit="return confirm('Ești sigur?');">
+                <button type="submit" class="btn btn-danger">🗑️ Șterge Eveniment</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+
