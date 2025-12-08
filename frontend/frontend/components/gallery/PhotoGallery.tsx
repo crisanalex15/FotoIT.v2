@@ -310,7 +310,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
                     e.stopPropagation();
                     downloadPhoto(photo);
                   }}
-                  className="absolute bottom-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-[#d4af37] hover:bg-[#b8922d] text-[#1e1e1e] p-1.5 sm:p-2 rounded-full z-10 shadow-lg touch-manipulation"
+                  className="absolute bottom-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-[#d4af37] hover:bg-[#b8922d] text-[#1e1e1e] p-1.5 sm:p-2 rounded-full z-[5] shadow-lg touch-manipulation flex items-center justify-center"
                   title="Descarcă poza"
                 >
                   <svg

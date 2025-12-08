@@ -25,10 +25,29 @@ export default function Header() {
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [galleryCode, setGalleryCode] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const router = useRouter();
 
-  const handleCodeSubmit = (e: React.FormEvent) => {
+  // Reset loading când componenta se unmount (navigare către altă pagină)
+  useEffect(() => {
+    return () => {
+      setIsLoading(false);
+    };
+  }, []);
+
+  // Timeout de siguranță pentru loading (oprește loading-ul după 3 secunde)
+  useEffect(() => {
+    if (isLoading) {
+      const timeout = setTimeout(() => {
+        setIsLoading(false);
+      }, 3000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoading]);
+
+  const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -39,10 +58,24 @@ export default function Header() {
       return;
     }
 
-    // Redirect către galerie
-    router.push(`/gallery/${trimmedCode}`);
-    setShowCodeModal(false);
-    setGalleryCode("");
+    // Set loading state
+    setIsLoading(true);
+
+    try {
+      // Redirect către galerie
+      await router.push(`/gallery/${trimmedCode}`);
+      
+      // Oprește loading-ul după un scurt delay pentru a permite navigarea să înceapă
+      setTimeout(() => {
+        setIsLoading(false);
+        setShowCodeModal(false);
+        setGalleryCode("");
+      }, 500);
+    } catch (error) {
+      // Dacă există o eroare, oprește loading-ul
+      setIsLoading(false);
+      setError("Eroare la accesarea galeriei. Te rog încearcă din nou.");
+    }
   };
 
   return (
@@ -159,7 +192,7 @@ export default function Header() {
 
         {/* Mobile Menu */}
         <div
-          className={`md:hidden fixed inset-0 bg-[#1e1e1e] z-[15] transition-transform duration-300 ease-in-out ${
+          className={`md:hidden fixed inset-0 bg-[#1e1e1e] z-[50] transition-transform duration-300 ease-in-out ${
             isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
           }`}
         >
@@ -198,60 +231,87 @@ export default function Header() {
           <div
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9] transition-opacity"
             onClick={() => {
-              setShowCodeModal(false);
-              setGalleryCode("");
-              setError("");
+              if (!isLoading) {
+                setShowCodeModal(false);
+                setGalleryCode("");
+                setError("");
+                setIsLoading(false);
+              }
             }}
           />
 
           {/* Modală */}
           <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90%] sm:w-[500px] max-w-[90vw] bg-[#1e1e1e] z-[12] rounded-[20px] sm:rounded-[30px] p-6 sm:p-8 shadow-2xl mx-4">
-            <button
-              onClick={() => {
-                setShowCodeModal(false);
-                setGalleryCode("");
-                setError("");
-              }}
-              className="absolute top-4 right-4 text-[#d4af37] text-3xl hover:text-[#f5e6ca] transition-colors"
-            >
-              ×
-            </button>
+            {!isLoading && (
+              <button
+                onClick={() => {
+                  setShowCodeModal(false);
+                  setGalleryCode("");
+                  setError("");
+                  setIsLoading(false);
+                }}
+                className="absolute top-4 right-4 text-[#d4af37] text-3xl hover:text-[#f5e6ca] transition-colors z-10"
+              >
+                ×
+              </button>
+            )}
 
             <h2 className="text-2xl font-bold text-[#d4af37] mb-6 text-center">
               Accesează Galeria
             </h2>
 
-            <form onSubmit={handleCodeSubmit} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="galleryCode"
-                  className="block text-[#d4af37] font-semibold mb-2"
-                >
-                  Introdu codul galeriei:
-                </label>
-                <input
-                  id="galleryCode"
-                  type="text"
-                  value={galleryCode}
-                  onChange={(e) => {
-                    setGalleryCode(e.target.value.toUpperCase());
-                    setError("");
-                  }}
-                  placeholder="ABC123"
-                  className="w-full px-4 py-3 text-lg text-center font-mono border-2 border-[#d4af37] rounded-lg bg-[#1e1e1e] text-[#d4af37] focus:outline-none focus:ring-2 focus:ring-[#d4af37]"
-                  maxLength={20}
-                  autoFocus
-                />
-                {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 border-4 border-[#d4af37]/30 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-transparent border-t-[#d4af37] rounded-full animate-spin"></div>
+                </div>
+                <p className="text-[#d4af37] text-lg font-semibold">
+                  Se încarcă galeria...
+                </p>
               </div>
+            ) : (
+              <form onSubmit={handleCodeSubmit} className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="galleryCode"
+                    className="block text-[#d4af37] font-semibold mb-2"
+                  >
+                    Introdu codul galeriei:
+                  </label>
+                  <input
+                    id="galleryCode"
+                    type="text"
+                    value={galleryCode}
+                    onChange={(e) => {
+                      setGalleryCode(e.target.value.toUpperCase());
+                      setError("");
+                    }}
+                    placeholder="ABC123"
+                    className="w-full px-4 py-3 text-lg text-center font-mono border-2 border-[#d4af37] rounded-lg bg-[#1e1e1e] text-[#d4af37] focus:outline-none focus:ring-2 focus:ring-[#d4af37]"
+                    maxLength={20}
+                    autoFocus
+                    disabled={isLoading}
+                  />
+                  {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+                </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 bg-[#d4af37] text-[#1e1e1e] font-bold rounded-lg hover:bg-[#b8922d] transition-colors"
-              >
-                Accesează Galeria
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 bg-[#d4af37] text-[#1e1e1e] font-bold rounded-lg hover:bg-[#b8922d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#d4af37] flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-[#1e1e1e]/30 border-t-[#1e1e1e] rounded-full animate-spin"></div>
+                      <span>Se încarcă...</span>
+                    </>
+                  ) : (
+                    "Accesează Galeria"
+                  )}
+                </button>
+              </form>
+            )}
           </div>
         </>
       )}
