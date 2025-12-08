@@ -140,9 +140,30 @@ run_remote "sudo mkdir -p /opt/fotoit/{backend,frontend,logs}"
 run_remote "sudo chown -R $SSH_USER:$SSH_USER /opt/fotoit"
 
 echo -e "${YELLOW}[9/11] Copiere cod backend și frontend (inclusiv credențiale)...${NC}"
+
+# Determină directorul de bază al proiectului (unde e scriptul)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "Copiere backend (inclusiv toate fișierele de configurare)..."
-run_remote "rm -rf /opt/fotoit/backend/*"
-copy_to_remote "backend/" "/opt/fotoit/backend/"
+run_remote "rm -rf /opt/fotoit/backend/* /opt/fotoit/backend/.* 2>/dev/null || true"
+run_remote "mkdir -p /opt/fotoit/backend"
+
+# Copiere backend - folosim tar pentru a copia structura corectă
+echo "Copiere structură backend cu tar..."
+(cd "$PROJECT_ROOT/backend" && tar czf - .) | ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$EC2_IP" "cd /opt/fotoit/backend && tar xzf -"
+
+# Verifică dacă pom.xml a fost copiat corect
+echo "Verificare structură backend..."
+run_remote "if [ -f '/opt/fotoit/backend/pom.xml' ]; then
+    echo '✓ pom.xml copiat cu succes'
+    echo 'Structură backend:'
+    ls -la /opt/fotoit/backend/ | head -10
+else
+    echo '❌ EROARE: pom.xml nu a fost găsit!'
+    echo 'Conținut director:'
+    ls -la /opt/fotoit/backend/
+    exit 1
+fi"
 
 # Verifică dacă credențialele au fost copiate
 echo "Verificare credențiale Google Drive..."
@@ -153,8 +174,9 @@ else
 fi"
 
 echo "Copiere frontend..."
-run_remote "rm -rf /opt/fotoit/frontend/*"
-copy_to_remote "frontend/frontend/" "/opt/fotoit/frontend/"
+run_remote "rm -rf /opt/fotoit/frontend/* /opt/fotoit/frontend/.* 2>/dev/null || true"
+run_remote "mkdir -p /opt/fotoit/frontend"
+(cd "$PROJECT_ROOT/frontend/frontend" && tar czf - .) | ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$EC2_IP" "cd /opt/fotoit/frontend && tar xzf -"
 
 echo -e "${YELLOW}[10/11] Build și configurare aplicații...${NC}"
 
@@ -165,14 +187,15 @@ run_remote "cd /opt/fotoit/backend && mvn clean package -DskipTests"
 # Build frontend
 echo "Building frontend..."
 run_remote "cd /opt/fotoit/frontend && npm install --production=false"
-run_remote "cd /opt/fotoit/frontend && NEXT_PUBLIC_API_URL=http://$EC2_IP:8080 npm run build"
 
-# Configurare variabile de mediu pentru frontend
+# Configurare variabile de mediu pentru frontend (folosește Nginx, nu port direct)
 echo "Configurare variabile de mediu frontend..."
 run_remote "cat > /opt/fotoit/frontend/.env.production << EOF
-NEXT_PUBLIC_API_URL=http://$EC2_IP:8080
+NEXT_PUBLIC_API_URL=http://$EC2_IP
 NEXT_PUBLIC_SITE_NAME=FotoIT
 EOF"
+
+run_remote "cd /opt/fotoit/frontend && npm run build"
 
 # Creare systemd service pentru backend
 echo "Configurare systemd service pentru backend..."
@@ -207,7 +230,7 @@ run_remote "chmod +x /opt/fotoit/frontend/start.sh"
 # Configurare PM2 pentru frontend
 echo "Configurare PM2 pentru frontend..."
 run_remote "cd /opt/fotoit/frontend && pm2 delete fotoit-frontend 2>/dev/null || true"
-run_remote "cd /opt/fotoit/frontend && NEXT_PUBLIC_API_URL=http://$EC2_IP:8080 pm2 start npm --name 'fotoit-frontend' -- start"
+run_remote "cd /opt/fotoit/frontend && NEXT_PUBLIC_API_URL=http://$EC2_IP pm2 start npm --name 'fotoit-frontend' -- start"
 run_remote "pm2 save"
 run_remote "pm2 startup systemd -u $SSH_USER --hp /home/$SSH_USER | tail -1 | bash || true"
 
@@ -233,7 +256,7 @@ server {
 
     # Backend API
     location /api {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:8080/api;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -241,6 +264,16 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300s;
         proxy_connect_timeout 75s;
+    }
+
+    # Admin Panel
+    location /admin {
+        proxy_pass http://localhost:8080/admin;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     # Swagger UI
@@ -268,6 +301,25 @@ echo "Configurare firewall..."
 run_remote "sudo ufw allow 22/tcp"
 run_remote "sudo ufw allow 80/tcp"
 run_remote "sudo ufw allow 443/tcp"
+
+# Obține IP-ul public al utilizatorului pentru restricție backend
+echo "Obținere IP public pentru restricție backend..."
+USER_IP=$(curl -s https://api.ipify.org || echo "")
+if [ -n "$USER_IP" ]; then
+    echo -e "${GREEN}IP public detectat: $USER_IP${NC}"
+    echo -e "${YELLOW}Deschidere port 8080 doar pentru IP-ul tău ($USER_IP)...${NC}"
+    run_remote "sudo ufw allow from $USER_IP to any port 8080 proto tcp"
+    echo -e "${GREEN}✓ Port 8080 deschis doar pentru IP-ul tău${NC}"
+    echo -e "${YELLOW}⚠️  IMPORTANT: Configurează și Security Group-ul AWS:${NC}"
+    echo -e "${YELLOW}   1. Mergi în AWS Console → EC2 → Security Groups${NC}"
+    echo -e "${YELLOW}   2. Selectează Security Group-ul instanței${NC}"
+    echo -e "${YELLOW}   3. Inbound Rules → Edit → Add Rule${NC}"
+    echo -e "${YELLOW}   4. Type: Custom TCP, Port: 8080, Source: $USER_IP/32${NC}"
+else
+    echo -e "${YELLOW}⚠️  Nu s-a putut detecta IP-ul public automat${NC}"
+    echo -e "${YELLOW}   Deschide manual portul 8080 în Security Group AWS pentru IP-ul tău${NC}"
+fi
+
 run_remote "sudo ufw --force enable"
 
 # Pornire servicii

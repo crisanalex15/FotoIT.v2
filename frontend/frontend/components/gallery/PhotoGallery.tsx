@@ -180,14 +180,14 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
   }
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#f4f4f4] to-white min-h-screen py-8">
+    <div className="w-full bg-gradient-to-b from-[#f4f4f4] to-white min-h-screen py-4 sm:py-6 md:py-8 px-4 sm:px-6 md:px-8">
       {/* Header Galerie */}
-      <div className="mb-8 text-center">
+      <div className="mb-6 sm:mb-8 text-center">
         {/* Butoane de acțiune */}
-        <div className="mt-4 flex gap-2 justify-center">
+        <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center items-center">
           <button
             onClick={toggleSelectMode}
-            className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+            className={`px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg font-semibold transition-all w-full sm:w-auto ${
               isSelectMode
                 ? "bg-[#d4af37] text-[#1e1e1e] hover:bg-[#b8922d]"
                 : "bg-transparent border-2 border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-[#1e1e1e]"
@@ -198,7 +198,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
           {isSelectMode && selectedPhotos.size > 0 && (
             <button
               onClick={downloadSelected}
-              className="px-4 py-2 rounded-lg font-semibold bg-[#d4af37] text-[#1e1e1e] hover:bg-[#b8922d] transition-all"
+              className="px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg font-semibold bg-[#d4af37] text-[#1e1e1e] hover:bg-[#b8922d] transition-all w-full sm:w-auto"
             >
               Descarcă {selectedPhotos.size}{" "}
               {selectedPhotos.size === 1 ? "poză" : "poze"}
@@ -208,7 +208,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
       </div>
 
       {/* Grid cu Poze - Design elegant */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
         {gallery.photos.map((photo, index) => {
           // Construiește URL-ul pentru thumbnail
           // Dacă thumbnailUrl este relativ (începe cu /api/), adaugă API_BASE_URL
@@ -310,15 +310,16 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
                     e.stopPropagation();
                     downloadPhoto(photo);
                   }}
-                  className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#d4af37] hover:bg-[#b8922d] text-[#1e1e1e] p-2 rounded-full z-10 shadow-lg"
+                  className="absolute bottom-2 right-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity bg-[#d4af37] hover:bg-[#b8922d] text-[#1e1e1e] p-1.5 sm:p-2 rounded-full z-10 shadow-lg touch-manipulation"
                   title="Descarcă poza"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    height="24px"
+                    height="20px"
                     viewBox="0 -960 960 960"
-                    width="24px"
-                    fill="#e3e3e3"
+                    width="20px"
+                    className="sm:h-6 sm:w-6"
+                    fill="#1e1e1e"
                   >
                     <path d="M160-80v-80h640v80H160Zm320-160L200-600h160v-280h240v280h160L480-240Zm0-130 116-150h-76v-280h-80v280h-76l116 150Zm0-150Z" />
                   </svg>
@@ -377,7 +378,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
 
           return (
             <div
-              className="fixed inset-0 bg-[#1e1e1e] bg-opacity-95 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 bg-[#1e1e1e] bg-opacity-95 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
               onClick={() => setSelectedPhoto(null)}
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
@@ -385,8 +386,9 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
               <div className="relative max-w-7xl max-h-full w-full flex items-center justify-center">
                 {/* Buton închidere */}
                 <button
-                  className="absolute top-4 right-4 text-[#d4af37] hover:text-[#f5e6ca] text-4xl font-bold z-10 transition-colors"
+                  className="absolute top-2 right-2 sm:top-4 sm:right-4 text-[#d4af37] hover:text-[#f5e6ca] text-3xl sm:text-4xl font-bold z-10 transition-colors touch-manipulation p-2"
                   onClick={() => setSelectedPhoto(null)}
+                  aria-label="Închide"
                 >
                   ×
                 </button>
@@ -395,10 +397,10 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
                 {hasPrevious && (
                   <button
                     onClick={goToPrevious}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-[#d4af37] cursor- hover:text-[#f5e6ca] text-4xl font-bold z-10 bg-[#1e1e1e]/80 hover:bg-[#d4af37] hover:text-[#1e1e1e] border-2 border-[#d4af37] rounded-full w-12 h-12 flex items-center justify-center transition-all leading-none"
+                    className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 text-[#d4af37] hover:text-[#f5e6ca] text-3xl sm:text-4xl font-bold z-10 bg-[#1e1e1e]/80 hover:bg-[#d4af37] hover:text-[#1e1e1e] border-2 border-[#d4af37] rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center transition-all leading-none touch-manipulation"
                     aria-label="Poză anterioară"
                   >
-                    <span className="relative -left-0.5 mb-2">‹</span>
+                    <span className="relative -left-0.5 mb-1 sm:mb-2">‹</span>
                   </button>
                 )}
 
@@ -410,7 +412,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
                       : selectedPhoto.url
                   }
                   alt={selectedPhoto.filename || "Poză selectată"}
-                  className="max-w-full max-h-[90vh] object-contain"
+                  className="max-w-full max-h-[85vh] sm:max-h-[90vh] object-contain"
                   onClick={(e) => e.stopPropagation()}
                 />
 
@@ -418,16 +420,16 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
                 {hasNext && (
                   <button
                     onClick={goToNext}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#d4af37] hover:text-[#f5e6ca] text-4xl font-bold z-10 bg-[#1e1e1e]/80 hover:bg-[#d4af37] hover:text-[#1e1e1e] border-2 border-[#d4af37] rounded-full w-12 h-12 flex items-center justify-center transition-all leading-none"
+                    className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 text-[#d4af37] hover:text-[#f5e6ca] text-3xl sm:text-4xl font-bold z-10 bg-[#1e1e1e]/80 hover:bg-[#d4af37] hover:text-[#1e1e1e] border-2 border-[#d4af37] rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center transition-all leading-none touch-manipulation"
                     aria-label="Poză următoare"
                   >
-                    <span className="relative -right-0.5 mb-2">›</span>
+                    <span className="relative -right-0.5 mb-1 sm:mb-2">›</span>
                   </button>
                 )}
 
                 {/* Info și butoane */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2">
-                  <div className="text-[#d4af37] text-sm bg-[#1e1e1e]/80 border border-[#d4af37] px-3 py-1 rounded">
+                <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2">
+                  <div className="text-[#d4af37] text-xs sm:text-sm bg-[#1e1e1e]/80 border border-[#d4af37] px-2 sm:px-3 py-1 rounded">
                     {currentIndex + 1} / {gallery.photos.length}
                   </div>
                   <div className="flex gap-2">
@@ -436,7 +438,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
                         e.stopPropagation();
                         downloadPhoto(selectedPhoto);
                       }}
-                      className="bg-[#d4af37] hover:bg-[#b8922d] text-[#1e1e1e] px-4 py-2 rounded-lg font-semibold transition-all"
+                      className="bg-[#d4af37] hover:bg-[#b8922d] text-[#1e1e1e] px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-semibold transition-all touch-manipulation"
                     >
                       📥 Descarcă
                     </button>

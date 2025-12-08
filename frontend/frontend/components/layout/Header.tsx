@@ -19,11 +19,13 @@ if (typeof window !== "undefined") {
  * - Navigare (ACASA, DESPRE, CONTACT)
  * - Buton pentru introducere cod galerie
  * - Modală pentru introducere cod
+ * - Meniu hamburger pentru mobile
  */
 export default function Header() {
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [galleryCode, setGalleryCode] = useState("");
   const [error, setError] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const router = useRouter();
 
   const handleCodeSubmit = (e: React.FormEvent) => {
@@ -45,7 +47,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="relative bg-[#1e1e1e] text-[#d4af37] py-2.5 px-[10%] z-10">
+      <header className="relative bg-[#1e1e1e] text-[#d4af37] py-2.5 px-4 sm:px-6 md:px-[10%] z-10">
         <div className="max-w-[70vw] mx-auto flex justify-between items-center">
           {/* Logo FotoIT */}
           {(() => {
@@ -66,17 +68,17 @@ export default function Header() {
               }
             }, []);
             return (
-              <Link href="/" className="flex items-center" ref={logoRef}>
+              <Link href="/" className="flex items-center z-20" ref={logoRef}>
                 <img
                   src="/logo-fotoit.png"
                   alt="FotoIT"
-                  className="h-[10vh] w-auto max-h-[50px] max-w-full"
+                  className="h-[8vh] sm:h-[10vh] w-auto max-h-[40px] sm:max-h-[50px] max-w-full"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                     const parent = (e.target as HTMLImageElement).parentElement;
                     if (parent) {
                       parent.innerHTML =
-                        '<span class="text-2xl font-bold">FotoIT</span>';
+                        '<span class="text-xl sm:text-2xl font-bold">FotoIT</span>';
                     }
                   }}
                 />
@@ -84,11 +86,34 @@ export default function Header() {
             );
           })()}
 
-          {/* Navigare */}
+          {/* Hamburger Menu Button - Mobile */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden z-20 flex flex-col gap-1.5 p-2"
+            aria-label="Toggle menu"
+          >
+            <span
+              className={`w-6 h-0.5 bg-[#d4af37] transition-all duration-300 ${
+                isMobileMenuOpen ? "rotate-45 translate-y-2" : ""
+              }`}
+            />
+            <span
+              className={`w-6 h-0.5 bg-[#d4af37] transition-all duration-300 ${
+                isMobileMenuOpen ? "opacity-0" : ""
+              }`}
+            />
+            <span
+              className={`w-6 h-0.5 bg-[#d4af37] transition-all duration-300 ${
+                isMobileMenuOpen ? "-rotate-45 -translate-y-2" : ""
+              }`}
+            />
+          </button>
+
+          {/* Navigare Desktop */}
           {(() => {
             const navRef = useRef<HTMLDivElement>(null);
             useEffect(() => {
-              if (navRef.current) {
+              if (navRef.current && window.innerWidth >= 768) {
                 // Animatie pentru fiecare copil (buton)
                 gsap.fromTo(
                   navRef.current.children,
@@ -105,28 +130,64 @@ export default function Header() {
               }
             }, []);
             return (
-              <nav className="flex items-center gap-8" ref={navRef}>
+              <nav
+                className={`hidden md:flex items-center gap-4 lg:gap-8`}
+                ref={navRef}
+              >
                 <Link
                   href="/#despre"
-                  className="text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-[26px]"
+                  className="text-lg lg:text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-xl lg:hover:text-[26px]"
                 >
                   DESPRE
                 </Link>
                 <Link
                   href="/#contact"
-                  className="text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-[26px]"
+                  className="text-lg lg:text-2xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca] hover:text-xl lg:hover:text-[26px]"
                 >
                   CONTACT
                 </Link>
                 <button
                   onClick={() => setShowCodeModal(true)}
-                  className="text-2xl font-bold text-[#d4af37] bg-transparent border-2 border-[#d4af37] px-4 py-2 rounded-lg transition-all hover:bg-[#d4af37] hover:text-[#1e1e1e]"
+                  className="text-lg lg:text-2xl font-bold text-[#d4af37] bg-transparent border-2 border-[#d4af37] px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg transition-all hover:bg-[#d4af37] hover:text-[#1e1e1e]"
                 >
                   GALERIE
                 </button>
               </nav>
             );
           })()}
+        </div>
+
+        {/* Mobile Menu */}
+        <div
+          className={`md:hidden fixed inset-0 bg-[#1e1e1e] z-[15] transition-transform duration-300 ease-in-out ${
+            isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex flex-col items-center justify-center h-full gap-8 px-8">
+            <Link
+              href="/#despre"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="text-3xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca]"
+            >
+              DESPRE
+            </Link>
+            <Link
+              href="/#contact"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="text-3xl font-bold text-[#d4af37] no-underline transition-all hover:text-[#f5e6ca]"
+            >
+              CONTACT
+            </Link>
+            <button
+              onClick={() => {
+                setShowCodeModal(true);
+                setIsMobileMenuOpen(false);
+              }}
+              className="text-3xl font-bold text-[#d4af37] bg-transparent border-2 border-[#d4af37] px-8 py-4 rounded-lg transition-all hover:bg-[#d4af37] hover:text-[#1e1e1e]"
+            >
+              GALERIE
+            </button>
+          </div>
         </div>
       </header>
 
@@ -144,7 +205,7 @@ export default function Header() {
           />
 
           {/* Modală */}
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] max-w-[90%] bg-[#1e1e1e] z-[12] rounded-[30px] p-8 shadow-2xl">
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90%] sm:w-[500px] max-w-[90vw] bg-[#1e1e1e] z-[12] rounded-[20px] sm:rounded-[30px] p-6 sm:p-8 shadow-2xl mx-4">
             <button
               onClick={() => {
                 setShowCodeModal(false);
