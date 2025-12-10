@@ -62,7 +62,7 @@ export default function Home() {
     try {
       // Redirect către galerie
       await router.push(`/gallery/${trimmedCode}`);
-      
+
       // Oprește loading-ul după un scurt delay pentru a permite navigarea să înceapă
       setTimeout(() => {
         setIsLoading(false);
@@ -118,7 +118,36 @@ export default function Home() {
               Modelează Amintiri
             </h3>
           </div>
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-[#f5e6ca] mt-6 sm:mt-8 max-w-2xl mx-auto px-4"></p>
+
+          {/* Buton Galerie cu subtext */}
+          <div
+            className="mt-8 sm:mt-10 md:mt-12"
+            ref={(el) => {
+              if (el) {
+                gsap.fromTo(
+                  el,
+                  { opacity: 0, y: 30 },
+                  {
+                    opacity: 1,
+                    y: 0,
+                    duration: 1,
+                    ease: "power3.out",
+                    delay: 1.5,
+                  }
+                );
+              }
+            }}
+          >
+            <button
+              onClick={() => setShowCodeModal(true)}
+              className="px-6 sm:px-8 md:px-10 py-3 sm:py-4 bg-[#d4af37] text-[#1e1e1e] text-lg sm:text-xl md:text-2xl font-bold rounded-lg hover:bg-[#b8922d] transition-all shadow-lg hover:shadow-2xl hover:scale-105 mb-3 sm:mb-4"
+            >
+              Accesează Galeria
+            </button>
+            <p className="text-sm sm:text-base md:text-lg text-[#f5e6ca]/80 max-w-md mx-auto px-4">
+              Introdu codul galeriei pentru a vedea pozele evenimentului tău
+            </p>
+          </div>
         </div>
 
         {/* Decorative elements cu animatie GSAP */}
@@ -395,7 +424,9 @@ export default function Home() {
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-5xl mx-auto">
             <div className="bg-white rounded-xl p-6 sm:p-8 shadow-lg text-center hover:shadow-2xl transition-all hover:-translate-y-2 border border-gray-100">
               <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">💒</div>
-              <h3 className="text-xl sm:text-2xl font-bold text-[#1e1e1e] mb-2 sm:mb-3">Nunti</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-[#1e1e1e] mb-2 sm:mb-3">
+                Nunti
+              </h3>
               <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
                 Galerii foto pentru evenimente de nuntă
               </p>
@@ -549,7 +580,9 @@ export default function Home() {
                     autoFocus
                     disabled={isLoading}
                   />
-                  {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+                  {error && (
+                    <p className="mt-2 text-sm text-red-400">{error}</p>
+                  )}
                 </div>
 
                 <button

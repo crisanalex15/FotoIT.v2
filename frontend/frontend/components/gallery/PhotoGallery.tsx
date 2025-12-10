@@ -21,6 +21,8 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
   const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
   const [imageStates, setImageStates] = useState<ImageLoadState>({});
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<string>("");
 
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -92,21 +94,57 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
     setSelectedPhotos(newSelected);
   };
 
-  const downloadPhoto = async (photo: Photo) => {
+  // Funcție internă pentru descărcare fără loading (folosită în fallback)
+  const downloadPhotoInternal = async (photo: Photo) => {
     try {
       const url = photo.fileId
         ? `${API_BASE_URL}/api/gallery/download/${
             photo.fileId
           }?filename=${encodeURIComponent(photo.filename)}`
         : photo.url;
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = photo.filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+      // Pentru descărcări din API, așteptăm răspunsul
+      if (photo.fileId) {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error("Eroare la descărcare");
+        }
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = photo.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = photo.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      // Delay mic pentru a permite browser-ului să proceseze descărcarea
+      await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (error) {
       console.error("Eroare la descărcare:", error);
+      throw error;
+    }
+  };
+
+  const downloadPhoto = async (photo: Photo) => {
+    setIsDownloading(true);
+    setDownloadProgress(`Se descarcă ${photo.filename}...`);
+    try {
+      await downloadPhotoInternal(photo);
+    } catch (error) {
+      alert("Eroare la descărcarea pozei. Te rog încearcă din nou.");
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress("");
     }
   };
 
@@ -114,20 +152,42 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
     const selected = gallery.photos.filter((p) => selectedPhotos.has(p.id));
     if (selected.length === 0) return;
 
+    setIsDownloading(true);
+    setDownloadProgress(
+      `Se pregătește ZIP-ul cu ${selected.length} ${
+        selected.length === 1 ? "poză" : "poze"
+      }...`
+    );
+
     try {
       // Descarcă ca ZIP
       const fileIds = selected.map((p) => p.fileId).filter((id) => id);
       if (fileIds.length === 0) {
         // Fallback: descarcă individual dacă nu avem fileId
-        for (const photo of selected) {
-          await downloadPhoto(photo);
-          await new Promise((resolve) => setTimeout(resolve, 300));
+        setDownloadProgress(
+          `Se descarcă ${selected.length} ${
+            selected.length === 1 ? "poză" : "poze"
+          }...`
+        );
+        for (let i = 0; i < selected.length; i++) {
+          const photo = selected[i];
+          setDownloadProgress(
+            `Se descarcă ${i + 1}/${selected.length}: ${photo.filename}...`
+          );
+          try {
+            await downloadPhotoInternal(photo);
+          } catch (error) {
+            console.error(`Eroare la descărcarea ${photo.filename}:`, error);
+          }
         }
         setSelectedPhotos(new Set());
         setIsSelectMode(false);
+        setIsDownloading(false);
+        setDownloadProgress("");
         return;
       }
 
+      setDownloadProgress("Se creează arhiva ZIP...");
       const response = await fetch(
         `${API_BASE_URL}/api/gallery/download/zip?galleryName=${encodeURIComponent(
           gallery.name
@@ -145,6 +205,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
         throw new Error("Eroare la descărcarea ZIP-ului");
       }
 
+      setDownloadProgress("Se descarcă arhiva ZIP...");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -155,17 +216,31 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
+      // Delay mic pentru a permite browser-ului să proceseze descărcarea
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       setSelectedPhotos(new Set());
       setIsSelectMode(false);
     } catch (error) {
       console.error("Eroare la descărcare ZIP:", error);
+      setDownloadProgress("Eroare la ZIP, se descarcă individual...");
       // Fallback: descarcă individual
-      for (const photo of selected) {
-        await downloadPhoto(photo);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+      for (let i = 0; i < selected.length; i++) {
+        const photo = selected[i];
+        setDownloadProgress(
+          `Se descarcă ${i + 1}/${selected.length}: ${photo.filename}...`
+        );
+        try {
+          await downloadPhotoInternal(photo);
+        } catch (err) {
+          console.error(`Eroare la descărcarea ${photo.filename}:`, err);
+        }
       }
       setSelectedPhotos(new Set());
       setIsSelectMode(false);
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress("");
     }
   };
 
@@ -181,6 +256,25 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
 
   return (
     <div className="w-full bg-gradient-to-b from-[#f4f4f4] to-white min-h-screen py-4 sm:py-6 md:py-8 px-4 sm:px-6 md:px-8">
+      {/* Loading Overlay pentru Descărcări */}
+      {isDownloading && (
+        <div className="fixed inset-0 bg-[#1e1e1e]/90 backdrop-blur-sm z-[100] flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 text-center">
+            <div className="mb-4">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-4 border-[#d4af37] border-t-transparent"></div>
+            </div>
+            <h3 className="text-lg sm:text-xl font-bold text-[#1e1e1e] mb-2">
+              Se descarcă...
+            </h3>
+            <p className="text-sm sm:text-base text-gray-600">
+              {downloadProgress || "Te rog așteaptă"}
+            </p>
+            <p className="text-xs sm:text-sm text-gray-500 mt-2">
+              Nu închide această pagină
+            </p>
+          </div>
+        </div>
+      )}
       {/* Header Galerie */}
       <div className="mb-6 sm:mb-8 text-center">
         {/* Butoane de acțiune */}

@@ -179,12 +179,6 @@ export default function Header() {
                 >
                   CONTACT
                 </Link>
-                <button
-                  onClick={() => setShowCodeModal(true)}
-                  className="text-lg lg:text-2xl font-bold text-[#d4af37] bg-transparent border-2 border-[#d4af37] px-3 lg:px-4 py-1.5 lg:py-2 rounded-lg transition-all hover:bg-[#d4af37] hover:text-[#1e1e1e]"
-                >
-                  GALERIE
-                </button>
               </nav>
             );
           })()}
@@ -211,15 +205,6 @@ export default function Header() {
             >
               CONTACT
             </Link>
-            <button
-              onClick={() => {
-                setShowCodeModal(true);
-                setIsMobileMenuOpen(false);
-              }}
-              className="text-3xl font-bold text-[#d4af37] bg-transparent border-2 border-[#d4af37] px-8 py-4 rounded-lg transition-all hover:bg-[#d4af37] hover:text-[#1e1e1e]"
-            >
-              GALERIE
-            </button>
           </div>
         </div>
       </header>

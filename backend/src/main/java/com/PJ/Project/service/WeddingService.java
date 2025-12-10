@@ -3,6 +3,7 @@ package com.PJ.Project.service;
 import com.PJ.Project.dto.GalleryResponseDto;
 import com.PJ.Project.dto.PhotoDto;
 import com.PJ.Project.dto.WeddingDto;
+import com.PJ.Project.dto.WeddingSummaryDto;
 import com.PJ.Project.entity.EventType;
 import com.PJ.Project.entity.Photo;
 import com.PJ.Project.entity.Wedding;
@@ -135,6 +136,22 @@ public class WeddingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Wedding", "code", code));
     }
 
+    @Transactional(readOnly = true)
+    public List<WeddingSummaryDto> getAllWeddingsSummary() {
+        List<Wedding> weddings = weddingRepository.findAll();
+        return weddings.stream()
+                .map(wedding -> WeddingSummaryDto.builder()
+                        .id(wedding.getId())
+                        .code(wedding.getCode())
+                        .eventType(wedding.getEventType())
+                        .name(wedding.getName())
+                        .description(wedding.getDescription())
+                        .photoCount(photoRepository.countByWedding(wedding))
+                        .build())
+                .collect(Collectors.toList());
+    }
+    
+    @Transactional(readOnly = true)
     public List<Wedding> getAllWeddings() {
         return weddingRepository.findAll();
     }

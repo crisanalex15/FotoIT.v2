@@ -37,7 +37,7 @@ export default async function GalleryPage({ params }: GalleryPageProps) {
                 ←
               </Link>
               <span className="text-xl sm:text-2xl md:text-3xl font-bold">
-                Evenimente <span className="font-mono text-lg sm:text-xl md:text-2xl">{code}</span>
+                Eveniment <span className="text-[#f5e6ca]">{gallery.name.replace(/^Evenimente?\s*/i, '')}</span>
               </span>
             </div>
           </div>

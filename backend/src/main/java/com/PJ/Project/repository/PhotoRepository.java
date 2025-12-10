@@ -11,5 +11,6 @@ import java.util.List;
 public interface PhotoRepository extends JpaRepository<Photo, Long> {
     List<Photo> findByWedding(Wedding wedding);
     void deleteByWedding(Wedding wedding);
+    long countByWedding(Wedding wedding);
 }
 

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 
@@ -22,7 +23,7 @@ public class AdminController {
 
     @GetMapping
     public String dashboard(Model model) {
-        model.addAttribute("weddings", weddingService.getAllWeddings());
+        model.addAttribute("weddings", weddingService.getAllWeddingsSummary());
         return "admin/dashboard";
     }
 
@@ -72,4 +73,3 @@ public class AdminController {
         return "admin/wedding-details";
     }
 }
-

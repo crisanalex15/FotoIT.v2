@@ -1,81 +1,282 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Admin Dashboard - FotoIT</title>
-    <link rel="stylesheet" th:href="@{/css/admin.css}">
-</head>
-<body>
+    <link rel="stylesheet" th:href="@{/css/admin.css}" />
+  </head>
+  <body>
     <div class="container">
-        <h1>📸 FotoIT - Admin Dashboard</h1>
-        
-        <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
-        <div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
-        
-        <div class="create-form">
-            <h2>Creează Eveniment Nou</h2>
-            <form th:action="@{/admin/create}" method="post">
-                <div class="form-group">
-                    <label>Google Drive Folder ID:</label>
-                    <input type="text" name="googleFolderId" required placeholder="1VO-g9pYA8KlF0lHofwrFqPwCpuD--yPF">
-                </div>
-                <div class="form-group">
-                    <label>Tip Eveniment:</label>
-                    <select name="eventType" required>
-                        <option value="WEDDING">💒 Nuntă</option>
-                        <option value="SWEET_16">🎂 Majorată</option>
-                        <option value="EVENT">🎉 Eveniment</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Nume Eveniment (opțional):</label>
-                    <input type="text" name="name" placeholder="Nunta Maria & Ion">
-                </div>
-                <div class="form-group">
-                    <label>Descriere (opțional):</label>
-                    <textarea name="description" rows="3"></textarea>
-                </div>
-                <button type="submit">Creează Eveniment</button>
-            </form>
-        </div>
-        
-        <div class="weddings-list">
-            <h2>Evenimente Existente</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Cod</th>
-                        <th>Tip</th>
-                        <th>Nume</th>
-                        <th>Poze</th>
-                        <th>Acțiuni</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr th:each="wedding : ${weddings}">
-                        <td th:text="${wedding.code}"></td>
-                        <td>
-                            <span th:if="${wedding.eventType.name() == 'WEDDING'}" class="badge badge-wedding">💒 Nuntă</span>
-                            <span th:if="${wedding.eventType.name() == 'SWEET_16'}" class="badge badge-sweet16">🎂 Majorată</span>
-                            <span th:if="${wedding.eventType.name() == 'EVENT'}" class="badge badge-event">🎉 Eveniment</span>
-                        </td>
-                        <td th:text="${wedding.name}"></td>
-                        <td th:text="${wedding.photos.size()}"></td>
-                        <td>
-                            <a th:href="@{/admin/{id}(id=${wedding.id})}" class="btn btn-info">Detalii</a>
-                            <form th:action="@{/admin/{id}/sync(id=${wedding.id})}" method="post" style="display:inline;">
-                                <button type="submit" class="btn btn-sync">🔄 Sync</button>
-                            </form>
-                            <form th:action="@{/admin/{id}/delete(id=${wedding.id})}" method="post" style="display:inline;" 
-                                  onsubmit="return confirm('Ești sigur că vrei să ștergi acest eveniment?');">
-                                <button type="submit" class="btn btn-danger">🗑️ Șterge</button>
-                            </form>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</body>
-</html>
+      <h1>FotoIT - Admin Dashboard</h1>
 
+      <!-- Modal pentru Success -->
+      <div
+        id="successModal"
+        class="modal"
+        th:if="${success}"
+        th:attr="data-show=${success != null}"
+      >
+        <div class="modal-content modal-success">
+          <span class="close-modal" onclick="closeModal('successModal')"
+            >&times;</span
+          >
+          <div class="modal-icon">✅</div>
+          <h2>Succes!</h2>
+          <p th:text="${success}"></p>
+          <button class="modal-btn" onclick="closeModal('successModal')">
+            OK
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal pentru Error -->
+      <div
+        id="errorModal"
+        class="modal"
+        th:if="${error}"
+        th:attr="data-show=${error != null}"
+      >
+        <div class="modal-content modal-error">
+          <span class="close-modal" onclick="closeModal('errorModal')"
+            >&times;</span
+          >
+          <div class="modal-icon">❌</div>
+          <h2>Eroare</h2>
+          <p th:text="${error}"></p>
+          <button class="modal-btn" onclick="closeModal('errorModal')">
+            OK
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal pentru Copiere Link -->
+      <div id="copyLinkModal" class="modal">
+        <div class="modal-content modal-info">
+          <span class="close-modal" onclick="closeModal('copyLinkModal')"
+            >&times;</span
+          >
+          <div class="modal-icon">📋</div>
+          <h2>Link Copiat!</h2>
+          <div class="copy-message">
+            <p><strong>Bună! 🎉</strong></p>
+            <p>
+              Pozele tale sunt gata și pot fi accesate folosind linkul sau codul
+              de mai jos:
+            </p>
+            <div class="code-display" id="codeDisplay"></div>
+            <p class="copy-success">✓ Link-ul a fost copiat în clipboard!</p>
+          </div>
+          <button class="modal-btn" onclick="closeModal('copyLinkModal')">
+            Perfect!
+          </button>
+        </div>
+      </div>
+
+      <div class="create-form">
+        <h2>Creează Eveniment Nou</h2>
+        <form th:action="@{/admin/create}" method="post">
+          <div class="form-group">
+            <label>Google Drive Folder ID:</label>
+            <input
+              type="text"
+              name="googleFolderId"
+              required
+              placeholder="1VO-g9pYA8KlF0lHofwrFqPwCpuD--yPF"
+            />
+          </div>
+          <div class="form-group">
+            <label>Tip Eveniment:</label>
+            <select name="eventType" required>
+              <option value="WEDDING">💒 Nunta</option>
+              <option value="SWEET_16">🎂 Majorat</option>
+              <option value="EVENT">🎉 Eveniment</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Nume Eveniment (opțional):</label>
+            <input type="text" name="name" placeholder="Nunta Maria & Ion" />
+          </div>
+          <div class="form-group">
+            <label>Descriere (opțional):</label>
+            <textarea name="description" rows="3"></textarea>
+          </div>
+          <button type="submit">Creează Eveniment</button>
+        </form>
+      </div>
+
+      <div class="weddings-list">
+        <h2>Evenimente Existente</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Cod</th>
+              <th>Tip</th>
+              <th>Nume</th>
+              <th>Poze</th>
+              <th>Acțiuni</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr th:each="wedding : ${weddings}">
+              <td th:text="${wedding.code}"></td>
+              <td>
+                <span
+                  th:if="${wedding.eventType.name() == 'WEDDING'}"
+                  class="badge badge-wedding"
+                  >💒 Nunta</span
+                >
+                <span
+                  th:if="${wedding.eventType.name() == 'SWEET_16'}"
+                  class="badge badge-sweet16"
+                  >🎂 Majorat</span
+                >
+                <span
+                  th:if="${wedding.eventType.name() == 'EVENT'}"
+                  class="badge badge-event"
+                  >🎉 Eveniment</span
+                >
+              </td>
+              <td th:text="${wedding.name != null ? wedding.name : 'N/A'}"></td>
+              <td th:text="${wedding.photoCount}"></td>
+              <td>
+                <a
+                  th:href="@{/admin/{id}(id=${wedding.id})}"
+                  class="btn btn-info"
+                  >Detalii</a
+                >
+                <button
+                  type="button"
+                  class="btn btn-copy"
+                  th:data-code="${wedding.code}"
+                  th:data-name="${wedding.name != null ? wedding.name : ''}"
+                  onclick="copyGalleryLinkFromButton(this)"
+                >
+                  📋 Copiază Link
+                </button>
+                <form
+                  th:action="@{/admin/{id}/sync(id=${wedding.id})}"
+                  method="post"
+                  style="display: inline"
+                >
+                  <button type="submit" class="btn btn-sync">🔄 Sync</button>
+                </form>
+                <form
+                  th:action="@{/admin/{id}/delete(id=${wedding.id})}"
+                  method="post"
+                  style="display: inline"
+                  onsubmit="return confirmDelete()"
+                >
+                  <button type="submit" class="btn btn-danger">
+                    🗑️ Șterge
+                  </button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      // Închide modal-urile când se dă click pe X sau pe overlay
+      document.querySelectorAll(".close-modal").forEach((closeBtn) => {
+        closeBtn.addEventListener("click", function () {
+          this.closest(".modal").style.display = "none";
+        });
+      });
+
+      window.onclick = function (event) {
+        if (event.target.classList.contains("modal")) {
+          event.target.style.display = "none";
+        }
+      };
+
+      function closeModal(modalId) {
+        document.getElementById(modalId).style.display = "none";
+      }
+
+      // Afișează modal-urile automat dacă există mesaje
+      window.onload = function () {
+        const successModal = document.getElementById("successModal");
+        const errorModal = document.getElementById("errorModal");
+
+        if (successModal && successModal.getAttribute("data-show") === "true") {
+          successModal.style.display = "flex";
+        }
+        if (errorModal && errorModal.getAttribute("data-show") === "true") {
+          errorModal.style.display = "flex";
+        }
+      };
+
+      // Funcție pentru copiere link galerie (folosește data-* attributes)
+      function copyGalleryLinkFromButton(button) {
+        const code = button.getAttribute("data-code");
+        const name = button.getAttribute("data-name") || "";
+        copyGalleryLink(code, name);
+      }
+
+      // Funcție pentru copiere link galerie
+      function copyGalleryLink(code, name) {
+        // Construiește URL-ul complet
+        // Presupunem că frontend-ul rulează pe localhost:3000 sau același domain
+        let baseUrl = window.location.origin;
+        // Dacă backend-ul e pe port 8080, schimbă la 3000 pentru frontend
+        if (baseUrl.includes(":8080")) {
+          baseUrl = baseUrl.replace(":8080", ":3000");
+        }
+        const galleryUrl = baseUrl + "/gallery/" + code;
+
+        // Copiază în clipboard
+        navigator.clipboard
+          .writeText(galleryUrl)
+          .then(function () {
+            // Afișează modal-ul cu mesajul pompos
+            const codeDisplay = document.getElementById("codeDisplay");
+            codeDisplay.innerHTML = `
+                    <div class="code-box">
+                        <div class="code-label">Cod:</div>
+                        <div class="code-value">${code}</div>
+                    </div>
+                    <div class="link-box">
+                        <div class="code-label">Link:</div>
+                        <div class="code-value link-value">${galleryUrl}</div>
+                    </div>
+                `;
+            document.getElementById("copyLinkModal").style.display = "flex";
+          })
+          .catch(function (err) {
+            // Fallback pentru browsere vechi
+            const textArea = document.createElement("textarea");
+            textArea.value = galleryUrl;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+              document.execCommand("copy");
+              const codeDisplay = document.getElementById("codeDisplay");
+              codeDisplay.innerHTML = `
+                        <div class="code-box">
+                            <div class="code-label">Cod:</div>
+                            <div class="code-value">${code}</div>
+                        </div>
+                        <div class="link-box">
+                            <div class="code-label">Link:</div>
+                            <div class="code-value link-value">${galleryUrl}</div>
+                        </div>
+                    `;
+              document.getElementById("copyLinkModal").style.display = "flex";
+            } catch (err2) {
+              alert("Eroare la copiere. Te rog copiază manual: " + galleryUrl);
+            }
+            document.body.removeChild(textArea);
+          });
+      }
+
+      // Confirmare ștergere cu modal
+      function confirmDelete() {
+        return confirm(
+          "Ești sigur că vrei să ștergi acest eveniment? Această acțiune nu poate fi anulată."
+        );
+      }
+    </script>
+  </body>
+</html>

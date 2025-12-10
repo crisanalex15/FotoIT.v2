@@ -3,6 +3,7 @@ com\PJ\Project\dto\WeddingDto$WeddingDtoBuilder.class
 com\PJ\Project\config\GoogleDriveConfig.class
 com\PJ\Project\exception\ResourceNotFoundException.class
 com\PJ\Project\dto\WeddingDto.class
+com\PJ\Project\dto\WeddingSummaryDto$WeddingSummaryDtoBuilder.class
 com\PJ\Project\dto\GalleryResponseDto.class
 com\PJ\Project\entity\Wedding.class
 com\PJ\Project\controller\GalleryApiController.class
@@ -20,5 +21,6 @@ com\PJ\Project\entity\Wedding$WeddingBuilder.class
 com\PJ\Project\service\WeddingService.class
 com\PJ\Project\repository\WeddingRepository.class
 com\PJ\Project\service\GoogleDriveService.class
+com\PJ\Project\dto\WeddingSummaryDto.class
 com\PJ\Project\exception\GlobalExceptionHandler.class
 com\PJ\Project\entity\BaseEntity.class
