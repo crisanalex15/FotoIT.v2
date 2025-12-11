@@ -36,9 +36,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ro">
+    <html lang="ro" suppressHydrationWarning>
       <body
         className={`${playfair.variable} ${dancing.variable} ${sacramento.variable} antialiased min-h-screen flex flex-col`}
+        suppressHydrationWarning
       >
         <Header />
         <main className="flex-1">{children}</main>

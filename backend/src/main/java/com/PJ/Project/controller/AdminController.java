@@ -58,9 +58,9 @@ public class AdminController {
     public String deleteWedding(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         try {
             weddingService.deleteWedding(id);
-            redirectAttributes.addFlashAttribute("success", "Eveniment șters cu succes!");
+            redirectAttributes.addFlashAttribute("success", "Eveniment sters cu succes!");
         } catch (Exception e) {
-            log.error("Eroare la ștergere eveniment", e);
+            log.error("Eroare la stergere eveniment", e);
             redirectAttributes.addFlashAttribute("error", "Eroare: " + e.getMessage());
         }
         return "redirect:/admin";

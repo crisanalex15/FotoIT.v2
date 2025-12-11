@@ -1,7 +1,8 @@
 "use client";
 
 import { GalleryResponse, EventType, Photo } from "@/types/gallery";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { getGalleryPaginated } from "@/lib/api";
 
 interface ImageLoadState {
   [key: number]: "loading" | "loaded" | "error";
@@ -11,12 +12,17 @@ interface PhotoGalleryProps {
   gallery: GalleryResponse;
 }
 
+const PHOTOS_PER_PAGE = 20;
+
 /**
- * Componenta pentru afișarea galeriei foto
+ * Componenta pentru afișarea galeriei foto cu infinite scroll
  *
  * Afișează pozele într-un grid responsive cu lightbox pentru vizualizare
+ * și încarcă mai multe poze când utilizatorul face scroll
  */
-export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
+export default function PhotoGallery({
+  gallery: initialGallery,
+}: PhotoGalleryProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
   const [imageStates, setImageStates] = useState<ImageLoadState>({});
@@ -24,24 +30,85 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<string>("");
 
+  // Infinite scroll state
+  const [photos, setPhotos] = useState<Photo[]>(initialGallery.photos);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(
+    initialGallery.photos.length < initialGallery.totalPhotos
+  );
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
+  const totalPhotos = initialGallery.totalPhotos;
+
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+  // Funcție pentru încărcare mai multe poze
+  const loadMorePhotos = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return;
+
+    setIsLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const response = await getGalleryPaginated(
+        initialGallery.code,
+        nextPage,
+        PHOTOS_PER_PAGE
+      );
+
+      if (response.photos && response.photos.length > 0) {
+        setPhotos((prev) => [...prev, ...response.photos]);
+        setCurrentPage(nextPage);
+        setHasMore(
+          photos.length + response.photos.length < response.totalPhotos
+        );
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Eroare la încărcarea pozelor:", error);
+      setHasMore(false);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [currentPage, hasMore, isLoadingMore, initialGallery.code, photos.length]);
+
+  // Intersection Observer pentru infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMorePhotos();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, isLoadingMore, loadMorePhotos]);
 
   // Navigare cu tastatură în lightbox
   useEffect(() => {
     if (!selectedPhoto) return;
 
-    const currentIndex = gallery.photos.findIndex(
-      (p) => p.id === selectedPhoto.id
-    );
+    const currentIndex = photos.findIndex((p) => p.id === selectedPhoto.id);
     const hasPrevious = currentIndex > 0;
-    const hasNext = currentIndex < gallery.photos.length - 1;
+    const hasNext = currentIndex < photos.length - 1;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft" && hasPrevious) {
-        setSelectedPhoto(gallery.photos[currentIndex - 1]);
+        setSelectedPhoto(photos[currentIndex - 1]);
       } else if (e.key === "ArrowRight" && hasNext) {
-        setSelectedPhoto(gallery.photos[currentIndex + 1]);
+        setSelectedPhoto(photos[currentIndex + 1]);
       } else if (e.key === "Escape") {
         setSelectedPhoto(null);
       }
@@ -49,7 +116,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedPhoto, gallery.photos]);
+  }, [selectedPhoto, photos]);
 
   const getEventTypeLabel = (type: EventType): string => {
     switch (type) {
@@ -94,7 +161,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
     setSelectedPhotos(newSelected);
   };
 
-  // Funcție internă pentru descărcare fără loading (folosită în fallback)
+  // Funcție interna pentru descărcare fără loading (folosită în fallback)
   const downloadPhotoInternal = async (photo: Photo) => {
     try {
       const url = photo.fileId
@@ -149,7 +216,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
   };
 
   const downloadSelected = async () => {
-    const selected = gallery.photos.filter((p) => selectedPhotos.has(p.id));
+    const selected = photos.filter((p) => selectedPhotos.has(p.id));
     if (selected.length === 0) return;
 
     setIsDownloading(true);
@@ -190,7 +257,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
       setDownloadProgress("Se creează arhiva ZIP...");
       const response = await fetch(
         `${API_BASE_URL}/api/gallery/download/zip?galleryName=${encodeURIComponent(
-          gallery.name
+          initialGallery.name
         )}`,
         {
           method: "POST",
@@ -210,7 +277,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${gallery.name || "galerie"}.zip`;
+      link.download = `${initialGallery.name || "galerie"}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -244,7 +311,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
     }
   };
 
-  if (gallery.photos.length === 0) {
+  if (photos.length === 0 && !isLoadingMore) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-600 dark:text-gray-400 text-lg">
@@ -255,7 +322,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
   }
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#f4f4f4] to-white min-h-screen py-4 sm:py-6 md:py-8 px-4 sm:px-6 md:px-8">
+    <div className="w-full bg-gradient-to-b from-[#f4f4f4] to-white min-h-screen py-4 sm:py-6 md:py-8 px-4 sm:px-6 md:px-8" suppressHydrationWarning>
       {/* Loading Overlay pentru Descărcări */}
       {isDownloading && (
         <div className="fixed inset-0 bg-[#1e1e1e]/90 backdrop-blur-sm z-[100] flex items-center justify-center">
@@ -276,9 +343,9 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
         </div>
       )}
       {/* Header Galerie */}
-      <div className="mb-6 sm:mb-8 text-center">
+      <div className="mb-6 sm:mb-8 text-center" suppressHydrationWarning>
         {/* Butoane de acțiune */}
-        <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center items-center">
+        <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center items-center" suppressHydrationWarning>
           <button
             onClick={toggleSelectMode}
             className={`px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg font-semibold transition-all w-full sm:w-auto ${
@@ -302,8 +369,8 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
       </div>
 
       {/* Grid cu Poze - Design elegant */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-        {gallery.photos.map((photo, index) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6" suppressHydrationWarning>
+        {photos.map((photo, index) => {
           // Construiește URL-ul pentru thumbnail
           // Dacă thumbnailUrl este relativ (începe cu /api/), adaugă API_BASE_URL
           let imageUrl = photo.thumbnailUrl || photo.url;
@@ -331,36 +398,56 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
               }}
             >
               {!hasError && imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={photo.filename}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  loading="lazy"
-                  onLoad={() => {
-                    setImageStates((prev) => ({
-                      ...prev,
-                      [photo.id]: "loaded",
-                    }));
-                  }}
-                  onError={(e) => {
-                    const img = e.target as HTMLImageElement;
-                    // Dacă thumbnail-ul nu funcționează, încearcă URL-ul complet
-                    if (
-                      photo.thumbnailUrl &&
-                      img.src === photo.thumbnailUrl &&
-                      photo.url
-                    ) {
-                      img.src = photo.url;
-                      return;
-                    }
+                <>
+                  {/* Placeholder skeleton în timpul încărcării */}
+                  {imageStates[photo.id] !== "loaded" && imageStates[photo.id] !== "error" && (
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#1e1e1e] to-[#2a2a2a] animate-pulse flex items-center justify-center z-0">
+                      <div className="w-8 h-8 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                  <img
+                    src={imageUrl}
+                    alt={photo.filename}
+                    className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-110 ${
+                      imageStates[photo.id] === "loaded" || imageStates[photo.id] === undefined
+                        ? "opacity-100"
+                        : "opacity-0"
+                    }`}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={() => {
+                      setImageStates((prev) => ({
+                        ...prev,
+                        [photo.id]: "loaded",
+                      }));
+                    }}
+                    onError={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      console.error(`Eroare la încărcarea thumbnail-ului pentru ${photo.filename}:`, img.src);
+                      
+                      // Dacă thumbnail-ul nu funcționează, încearcă URL-ul complet
+                      if (
+                        photo.thumbnailUrl &&
+                        img.src.includes(photo.thumbnailUrl) &&
+                        photo.url
+                      ) {
+                        const fallbackUrl = photo.url?.startsWith("/api/")
+                          ? `${API_BASE_URL}${photo.url}`
+                          : photo.url;
+                        console.log(`Încercare fallback la URL complet: ${fallbackUrl}`);
+                        img.src = fallbackUrl;
+                        return;
+                      }
 
-                    // Dacă nici URL-ul complet nu funcționează, marchează ca eroare
-                    setImageStates((prev) => ({
-                      ...prev,
-                      [photo.id]: "error",
-                    }));
-                  }}
-                />
+                      // Dacă nici URL-ul complet nu funcționează, marchează ca eroare
+                      console.error(`Nu s-a putut încărca nici thumbnail-ul, nici URL-ul complet pentru ${photo.filename}`);
+                      setImageStates((prev) => ({
+                        ...prev,
+                        [photo.id]: "error",
+                      }));
+                    }}
+                  />
+                </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1e1e1e] to-[#2a2a2a]">
                   <span className="text-[#d4af37] text-sm font-semibold text-center px-2">
@@ -424,26 +511,40 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
         })}
       </div>
 
+      {/* Infinite Scroll Trigger */}
+      {hasMore && (
+        <div ref={observerTarget} className="w-full py-8 flex justify-center">
+          {isLoadingMore && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-gray-600">
+                Se încarcă mai multe poze...
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Lightbox Modal */}
       {selectedPhoto &&
         (() => {
-          const currentIndex = gallery.photos.findIndex(
+          const currentIndex = photos.findIndex(
             (p) => p.id === selectedPhoto.id
           );
           const hasPrevious = currentIndex > 0;
-          const hasNext = currentIndex < gallery.photos.length - 1;
+          const hasNext = currentIndex < photos.length - 1;
 
           const goToPrevious = (e: React.MouseEvent) => {
             e.stopPropagation();
             if (hasPrevious) {
-              setSelectedPhoto(gallery.photos[currentIndex - 1]);
+              setSelectedPhoto(photos[currentIndex - 1]);
             }
           };
 
           const goToNext = (e: React.MouseEvent) => {
             e.stopPropagation();
             if (hasNext) {
-              setSelectedPhoto(gallery.photos[currentIndex + 1]);
+              setSelectedPhoto(photos[currentIndex + 1]);
             }
           };
 
@@ -462,10 +563,10 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
             if (Math.abs(diff) > swipeThreshold) {
               if (diff > 0 && hasNext) {
                 // Swipe left - next
-                setSelectedPhoto(gallery.photos[currentIndex + 1]);
+                setSelectedPhoto(photos[currentIndex + 1]);
               } else if (diff < 0 && hasPrevious) {
                 // Swipe right - previous
-                setSelectedPhoto(gallery.photos[currentIndex - 1]);
+                setSelectedPhoto(photos[currentIndex - 1]);
               }
             }
           };
@@ -524,7 +625,7 @@ export default function PhotoGallery({ gallery }: PhotoGalleryProps) {
                 {/* Info și butoane */}
                 <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2">
                   <div className="text-[#d4af37] text-xs sm:text-sm bg-[#1e1e1e]/80 border border-[#d4af37] px-2 sm:px-3 py-1 rounded">
-                    {currentIndex + 1} / {gallery.photos.length}
+                    {currentIndex + 1} / {totalPhotos}
                   </div>
                   <div className="flex gap-2">
                     <button

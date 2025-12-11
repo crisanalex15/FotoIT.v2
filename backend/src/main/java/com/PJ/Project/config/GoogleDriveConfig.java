@@ -25,9 +25,9 @@ public class GoogleDriveConfig {
         log.info("Initializare Google Drive Service...");
         
         if (!credentialsResource.exists()) {
-            log.warn("Fișierul de credențiale Google Drive nu există: {}. Google Drive Service nu va fi disponibil.", 
+            log.warn("Fisierul de credentiale Google Drive nu exista: {}. Google Drive Service nu va fi disponibil.", 
                     credentialsResource.getFilename());
-            throw new IOException("Fișierul de credențiale Google Drive nu există: " + credentialsResource.getFilename());
+            throw new IOException("Fisierul de credentiale Google Drive nu exista: " + credentialsResource.getFilename());
         }
         
         GoogleCredential credential = GoogleCredential

@@ -58,7 +58,7 @@ public class WeddingService {
     @Transactional
     public int syncPhotosFromGoogleDrive(Long weddingId) throws IOException {
         if (googleDriveService == null) {
-            throw new IllegalStateException("Google Drive Service nu este configurat. Adaugă fișierul de credențiale în application.properties");
+            throw new IllegalStateException("Google Drive Service nu este configurat. Adauga fisierul de credentiale in application.properties");
         }
         
         Wedding wedding = getWeddingById(weddingId);
@@ -68,16 +68,16 @@ public class WeddingService {
         List<File> driveFiles = googleDriveService.listFilesInFolderRecursive(wedding.getGoogleFolderId());
         
         if (driveFiles.isEmpty()) {
-            log.warn("Nu s-au găsit imagini în folderul {}", wedding.getGoogleFolderId());
+            log.warn("Nu s-au gasit imagini in folderul {}", wedding.getGoogleFolderId());
             return 0;
         }
         
         List<Photo> photos = driveFiles.stream()
                 .map(driveFile -> {
-                    // Pentru imagini complete, folosim endpoint proxy în backend
+                    // Pentru imagini complete, folosim endpoint proxy in backend
                     // Acest endpoint va servi imaginile cu autentificare
                     String viewUrl = String.format("/api/gallery/image/%s", driveFile.getId());
-                    // Pentru thumbnail-uri, folosim un endpoint proxy în backend
+                    // Pentru thumbnail-uri, folosim un endpoint proxy in backend
                     // Acest endpoint va servi thumbnail-urile cu autentificare
                     String thumbnailUrl = String.format("/api/gallery/thumbnail/%s", driveFile.getId());
                     
@@ -123,6 +123,34 @@ public class WeddingService {
                 .description(wedding.getDescription())
                 .photos(photoDtos)
                 .totalPhotos(photoDtos.size())
+                .build();
+    }
+
+    public GalleryResponseDto getGalleryByCodePaginated(String code, int page, int size) {
+        Wedding wedding = getWeddingByCode(code);
+        
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        org.springframework.data.domain.Page<Photo> photoPage = photoRepository.findByWedding(wedding, pageable);
+        
+        List<PhotoDto> photoDtos = photoPage.getContent().stream()
+                .map(photo -> PhotoDto.builder()
+                        .id(photo.getId())
+                        .filename(photo.getFilename())
+                        .url(photo.getUrl())
+                        .thumbnailUrl(photo.getThumbnailUrl())
+                        .weddingId(wedding.getId())
+                        .fileId(photo.getFileId())
+                        .createdAt(photo.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+        
+        return GalleryResponseDto.builder()
+                .code(wedding.getCode())
+                .eventType(wedding.getEventType())
+                .name(wedding.getName())
+                .description(wedding.getDescription())
+                .photos(photoDtos)
+                .totalPhotos((int) photoPage.getTotalElements())
                 .build();
     }
 
