@@ -1,16 +1,9 @@
-// Constante globale
+import { SITE } from "@/lib/site";
 
-export const SITE_NAME = 'Next.js App';
-export const SITE_DESCRIPTION = 'Aplicație Next.js modernă cu arhitectură completă';
+export { SITE };
 
 export const NAV_LINKS = [
-  { href: '/', label: 'Acasă' },
-  { href: '/about', label: 'Despre' },
-  { href: '/contact', label: 'Contact' },
+  { href: "/#despre", label: "Despre" },
+  { href: "/#galerie", label: "Portofoliu" },
+  { href: "/#contact-cta", label: "Contact" },
 ] as const;
-
-export const API_ENDPOINTS = {
-  USERS: '/api/users',
-  POSTS: '/api/posts',
-} as const;
-

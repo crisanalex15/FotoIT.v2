@@ -8,6 +8,7 @@ import com.google.api.services.drive.DriveScopes;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -21,14 +22,9 @@ public class GoogleDriveConfig {
 
     @Bean
     @ConditionalOnProperty(name = "google.drive.credentials.path")
+    @ConditionalOnResource(resources = "${google.drive.credentials.path}")
     public Drive driveService(@Value("${google.drive.credentials.path}") Resource credentialsResource) throws IOException {
         log.info("Initializare Google Drive Service...");
-        
-        if (!credentialsResource.exists()) {
-            log.warn("Fisierul de credentiale Google Drive nu exista: {}. Google Drive Service nu va fi disponibil.", 
-                    credentialsResource.getFilename());
-            throw new IOException("Fisierul de credentiale Google Drive nu exista: " + credentialsResource.getFilename());
-        }
         
         GoogleCredential credential = GoogleCredential
                 .fromStream(credentialsResource.getInputStream())

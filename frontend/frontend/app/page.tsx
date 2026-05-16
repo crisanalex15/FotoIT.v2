@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import GallerySwiper from "@/components/gallery/GallerySwiper";
+import ContactCtaSection from "@/components/sections/ContactCtaSection";
 
 // Înregistrează ScrollTrigger
 if (typeof window !== "undefined") {
@@ -12,69 +11,9 @@ if (typeof window !== "undefined") {
 }
 
 /**
- * Pagina Principală - Design original FotoIT
- *
- * Include:
- * - Hero Section: "Prinde Momente, Modelează Amintiri"
- * - Despre Section: Profil Alex
- * - Galerie Section: Preview galerie
- * - Contact Section: Footer cu contact + input cod galerie
+ * Pagina principală FotoIT — site de prezentare + contact
  */
 export default function Home() {
-  const [showCodeModal, setShowCodeModal] = useState(false);
-  const [galleryCode, setGalleryCode] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
-
-  // Reset loading când componenta se unmount (navigare către altă pagină)
-  useEffect(() => {
-    return () => {
-      setIsLoading(false);
-    };
-  }, []);
-
-  // Timeout de siguranță pentru loading (oprește loading-ul după 3 secunde)
-  useEffect(() => {
-    if (isLoading) {
-      const timeout = setTimeout(() => {
-        setIsLoading(false);
-      }, 3000);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [isLoading]);
-
-  const handleCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    const trimmedCode = galleryCode.trim().toUpperCase();
-
-    if (!trimmedCode) {
-      setError("Te rog introdu un cod");
-      return;
-    }
-
-    // Set loading state
-    setIsLoading(true);
-
-    try {
-      // Redirect către galerie
-      await router.push(`/gallery/${trimmedCode}`);
-
-      // Oprește loading-ul după un scurt delay pentru a permite navigarea să înceapă
-      setTimeout(() => {
-        setIsLoading(false);
-        setShowCodeModal(false);
-        setGalleryCode("");
-      }, 500);
-    } catch (error) {
-      // Dacă există o eroare, oprește loading-ul
-      setIsLoading(false);
-      setError("Eroare la accesarea galeriei. Te rog încearcă din nou.");
-    }
-  };
   return (
     <div className="w-full">
       {/* Hero Section */}
@@ -119,9 +58,8 @@ export default function Home() {
             </h3>
           </div>
 
-          {/* Buton Galerie cu subtext */}
           <div
-            className="mt-8 sm:mt-10 md:mt-12"
+            className="mt-8 sm:mt-10 md:mt-12 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5"
             ref={(el) => {
               if (el) {
                 gsap.fromTo(
@@ -138,15 +76,18 @@ export default function Home() {
               }
             }}
           >
-            <button
-              onClick={() => setShowCodeModal(true)}
-              className="px-6 sm:px-8 md:px-10 py-3 sm:py-4 bg-[#d4af37] text-[#1e1e1e] text-lg sm:text-xl md:text-2xl font-bold rounded-lg hover:bg-[#b8922d] transition-all shadow-lg hover:shadow-2xl hover:scale-105 mb-3 sm:mb-4"
+            <a
+              href="#galerie"
+              className="px-6 sm:px-8 md:px-10 py-3 sm:py-4 bg-[#d4af37] text-[#1e1e1e] text-lg sm:text-xl font-bold rounded-lg hover:bg-[#b8922d] transition-all shadow-lg hover:shadow-2xl hover:scale-105"
             >
-              Accesează Galeria
-            </button>
-            <p className="text-sm sm:text-base md:text-lg text-[#f5e6ca]/80 max-w-md mx-auto px-4">
-              Introdu codul galeriei pentru a vedea pozele evenimentului tău
-            </p>
+              Vezi portofoliul
+            </a>
+            <a
+              href="#contact-cta"
+              className="px-6 sm:px-8 md:px-10 py-3 sm:py-4 border-2 border-[#d4af37] text-[#f5e6ca] text-lg sm:text-xl font-bold rounded-lg hover:bg-[#d4af37]/10 transition-all hover:scale-105"
+            >
+              Contactează-mă
+            </a>
           </div>
         </div>
 
@@ -308,8 +249,9 @@ export default function Home() {
         <div className="about-line absolute left-1/2 bottom-6 sm:bottom-8 md:bottom-12 transform -translate-x-1/2 h-1 w-[90%] sm:w-[300px] md:w-[400px] bg-gradient-to-r from-transparent via-[#d4af37] to-transparent" />
       </section>
 
-      {/* Galerie Preview Section */}
+      {/* Portofoliu Section */}
       <section
+        id="galerie"
         className="relative min-h-[80vh] py-12 sm:py-16 md:py-20 bg-gradient-to-b from-white via-[#fafafa] to-[#f4f4f4] overflow-hidden"
         ref={(el) => {
           if (el) {
@@ -328,11 +270,9 @@ export default function Home() {
                 },
               });
 
-              // 1. Typing animation pentru "Galerie"
-              const text = "Galerie";
+              // 1. Typing animation pentru "Portofoliu"
+              const text = "Portofoliu";
               const chars = text.split("");
-              const originalText = title.textContent || "";
-
               // Doar dacă nu a fost deja animat
               if (title.children.length === 0) {
                 title.innerHTML = ""; // Golește conținutul
@@ -410,7 +350,7 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 md:px-8">
           <div className="text-center mb-8 sm:mb-10 md:mb-12">
             <h1 className="gallery-title text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 text-[#1e1e1e]">
-              Galerie
+              Portofoliu
             </h1>
             <div className="absolute top-[100px] sm:top-[115px] md:top-[135px] left-1/2 transform -translate-x-1/2 w-1 h-8 sm:h-9 md:h-10 bg-gradient-to-b from-[#d4af37] to-transparent" />
           </div>
@@ -428,7 +368,7 @@ export default function Home() {
                 Nunti
               </h3>
               <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                Galerii foto pentru evenimente de nuntă
+                Fotografie pentru nunți și momente speciale
               </p>
             </div>
 
@@ -438,7 +378,7 @@ export default function Home() {
                 Majorate
               </h3>
               <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                Galerii pentru majorate și aniversări
+                Majorate și aniversări memorabile
               </p>
             </div>
 
@@ -448,162 +388,14 @@ export default function Home() {
                 Evenimente
               </h3>
               <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                Galerii pentru diverse evenimente
+                Evenimente private și corporate
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Contact Section / Footer */}
-      <section
-        id="contact"
-        className="relative bg-gradient-to-b from-[#1e1e1e] to-[#0f0f0f] text-[#d4af37] py-12 sm:py-14 md:py-16 overflow-hidden"
-      >
-        <div className="container mx-auto px-4 sm:px-6 md:px-8 text-center">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">
-            Contactează-mă
-          </h2>
-          <div className="w-16 sm:w-20 md:w-24 h-1 bg-[#d4af37] mx-auto mb-6 sm:mb-8" />
-
-          <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8 max-w-md mx-auto">
-            <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
-              <span className="text-xl sm:text-2xl">✉️</span>
-              <a
-                href="mailto:alexfotoit@gmail.com"
-                className="text-base sm:text-lg hover:text-[#f5e6ca] transition-colors break-all"
-              >
-                alexfotoit@gmail.com
-              </a>
-            </div>
-            <div className="flex items-center justify-center gap-2 sm:gap-3">
-              <span className="text-xl sm:text-2xl">📞</span>
-              <a
-                href="tel:0771277906"
-                className="text-base sm:text-lg hover:text-[#f5e6ca] transition-colors"
-              >
-                0771 277 906
-              </a>
-            </div>
-            <div className="flex justify-center gap-4 mt-4 sm:mt-6">
-              <a
-                href="https://instagram.com/fotoit"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 sm:w-12 sm:h-12 bg-[#d4af37] rounded-full flex items-center justify-center hover:bg-[#b8922d] transition-all hover:scale-110"
-              >
-                <img
-                  src="/instagram.png"
-                  alt="Instagram"
-                  className="w-5 h-5 sm:w-6 sm:h-6"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                    const parent = (e.target as HTMLImageElement).parentElement;
-                    if (parent) {
-                      parent.innerHTML =
-                        '<span class="text-[#1e1e1e] text-lg sm:text-xl">📷</span>';
-                    }
-                  }}
-                />
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Modală pentru Introducere Cod Galerie */}
-      {showCodeModal && (
-        <>
-          {/* Overlay */}
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9] transition-opacity"
-            onClick={() => {
-              if (!isLoading) {
-                setShowCodeModal(false);
-                setGalleryCode("");
-                setError("");
-                setIsLoading(false);
-              }
-            }}
-          />
-
-          {/* Modală */}
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90%] sm:w-[500px] max-w-[90vw] bg-[#1e1e1e] z-[12] rounded-[20px] sm:rounded-[30px] p-6 sm:p-8 shadow-2xl mx-4">
-            {!isLoading && (
-              <button
-                onClick={() => {
-                  setShowCodeModal(false);
-                  setGalleryCode("");
-                  setError("");
-                  setIsLoading(false);
-                }}
-                className="absolute top-4 right-4 text-[#d4af37] text-3xl hover:text-[#f5e6ca] transition-colors z-10"
-              >
-                ×
-              </button>
-            )}
-
-            <h2 className="text-2xl font-bold text-[#d4af37] mb-6 text-center">
-              Accesează Galeria
-            </h2>
-
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                <div className="relative w-16 h-16">
-                  <div className="absolute inset-0 border-4 border-[#d4af37]/30 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-transparent border-t-[#d4af37] rounded-full animate-spin"></div>
-                </div>
-                <p className="text-[#d4af37] text-lg font-semibold">
-                  Se încarcă galeria...
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleCodeSubmit} className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="galleryCodeHome"
-                    className="block text-[#d4af37] font-semibold mb-2"
-                  >
-                    Introdu codul galeriei:
-                  </label>
-                  <input
-                    id="galleryCodeHome"
-                    type="text"
-                    value={galleryCode}
-                    onChange={(e) => {
-                      setGalleryCode(e.target.value.toUpperCase());
-                      setError("");
-                    }}
-                    placeholder="ABC123"
-                    className="w-full px-4 py-3 text-lg text-center font-mono border-2 border-[#d4af37] rounded-lg bg-[#1e1e1e] text-[#d4af37] focus:outline-none focus:ring-2 focus:ring-[#d4af37] disabled:opacity-50 disabled:cursor-not-allowed"
-                    maxLength={20}
-                    autoFocus
-                    disabled={isLoading}
-                  />
-                  {error && (
-                    <p className="mt-2 text-sm text-red-400">{error}</p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 bg-[#d4af37] text-[#1e1e1e] font-bold rounded-lg hover:bg-[#b8922d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#d4af37] flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-[#1e1e1e]/30 border-t-[#1e1e1e] rounded-full animate-spin"></div>
-                      <span>Se încarcă...</span>
-                    </>
-                  ) : (
-                    "Accesează Galeria"
-                  )}
-                </button>
-              </form>
-            )}
-          </div>
-        </>
-      )}
+      <ContactCtaSection />
     </div>
   );
 }
