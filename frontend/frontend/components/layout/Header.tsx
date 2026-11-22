@@ -2,18 +2,35 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { KeyRound, X, ArrowRight } from "lucide-react";
 
+const NAV_LINKS = [
+  { href: "/#despre", label: "Despre" },
+  { href: "/#galerie", label: "Portofoliu" },
+  { href: "/#contact-cta", label: "Contact" },
+];
+
+const CODE_PATTERN = /^[A-Z0-9]{4,12}$/;
+
+const goldButton =
+  "inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#d4af37] to-[#b8922d] " +
+  "font-extrabold uppercase tracking-wider text-[#1e1e1e] shadow-md transition-all duration-200 " +
+  "hover:shadow-xl hover:shadow-[#d4af37]/20 hover:brightness-105 active:scale-[0.98] " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1e1e1e]";
+
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [galleryCode, setGalleryCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   const logoRef = useRef<HTMLAnchorElement>(null);
-  const navRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (logoRef.current) {
@@ -23,9 +40,6 @@ export default function Header() {
         { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "power3.out" }
       );
     }
-  }, []);
-
-  useEffect(() => {
     if (navRef.current && window.innerWidth >= 768) {
       gsap.fromTo(
         navRef.current.children,
@@ -35,195 +49,221 @@ export default function Header() {
     }
   }, []);
 
-  // Ascultă evenimentul global pentru deschiderea modalului din orice parte a paginii
+  // Deschiderea modalului din orice parte a site-ului
   useEffect(() => {
-    const handleOpen = () => setIsCodeModalOpen(true);
+    const handleOpen = () => {
+      setIsMobileMenuOpen(false);
+      setIsCodeModalOpen(true);
+    };
     window.addEventListener("open-code-modal", handleOpen);
     return () => window.removeEventListener("open-code-modal", handleOpen);
   }, []);
 
+  // Meniul se inchide la schimbarea paginii (ajustare in timpul randarii, fara efect suplimentar)
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
+    setIsMobileMenuOpen(false);
+  }
+
+  // Escape inchide meniul / modalul; scroll-ul paginii e blocat cat timp sunt deschise
+  const overlayOpen = isMobileMenuOpen || isCodeModalOpen;
+  useEffect(() => {
+    if (!overlayOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMobileMenuOpen(false);
+        setIsCodeModalOpen(false);
+      }
+    };
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = original;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [overlayOpen]);
+
   const handleOpenGallery = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!galleryCode.trim()) return;
+    const code = galleryCode.trim().toUpperCase();
+    if (!CODE_PATTERN.test(code)) {
+      setCodeError("Codul conține doar litere și cifre (de obicei 6 caractere).");
+      return;
+    }
+    setCodeError(null);
     setIsCodeModalOpen(false);
     setIsMobileMenuOpen(false);
-    router.push(`/gallery/${galleryCode.trim().toUpperCase()}`);
+    router.push(`/gallery/${code}`);
   };
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-[#1e1e1e]/95 backdrop-blur-md border-b border-[#d4af37]/20 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
+      <header className="sticky top-0 z-40 w-full border-b border-[#d4af37]/20 bg-[#1e1e1e]/95 shadow-md backdrop-blur-md">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group" ref={logoRef}>
-            <img
-              src="/logo-fotoit.png"
-              alt="FotoIT"
-              className="h-10 sm:h-12 w-auto object-contain transition-transform group-hover:scale-105"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-                const parent = (e.target as HTMLImageElement).parentElement;
-                if (parent) {
-                  parent.innerHTML =
-                    '<span class="text-2xl font-bold tracking-wider text-[#d4af37] font-[\'Dancing_Script\']">FotoIT</span>';
-                }
-              }}
-            />
+          <Link href="/" className="group flex items-center" ref={logoRef} aria-label="FotoIT — pagina principală">
+            {logoFailed ? (
+              <span className="font-['Dancing_Script'] text-2xl font-bold tracking-wider text-[#d4af37]">FotoIT</span>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src="/logo-fotoit.png"
+                alt="FotoIT"
+                className="h-10 w-auto object-contain transition-transform group-hover:scale-105 sm:h-12"
+                onError={() => setLogoFailed(true)}
+              />
+            )}
           </Link>
 
-          {/* Buton Meniu Mobil (Hamburger) */}
+          {/* Meniu desktop */}
+          <nav className="hidden items-center gap-8 md:flex" ref={navRef} aria-label="Navigare principală">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="inline-flex h-11 items-center text-sm font-bold uppercase tracking-wider text-gray-200 transition-colors hover:text-[#d4af37] lg:text-base"
+              >
+                {link.label}
+              </Link>
+            ))}
+            <button type="button" onClick={() => setIsCodeModalOpen(true)} className={`${goldButton} h-11 px-5 text-sm`}>
+              <KeyRound className="h-4 w-4" />
+              <span>Cod Client</span>
+            </button>
+          </nav>
+
+          {/* Buton meniu mobil */}
           <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2.5 rounded-lg text-[#d4af37] hover:bg-white/5 transition-colors focus:outline-none"
-            aria-label="Toggle menu"
+            type="button"
+            onClick={() => setIsMobileMenuOpen((open) => !open)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#d4af37] transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37] md:hidden"
+            aria-label={isMobileMenuOpen ? "Închide meniul" : "Deschide meniul"}
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-menu"
           >
-            <div className="w-6 h-5 flex flex-col justify-between">
+            <span className="relative block h-5 w-6" aria-hidden>
               <span
-                className={`w-full h-0.5 bg-[#d4af37] transition-all duration-300 ${
-                  isMobileMenuOpen ? "rotate-45 translate-y-2" : ""
+                className={`absolute left-0 h-0.5 w-6 bg-[#d4af37] transition-all duration-300 ${
+                  isMobileMenuOpen ? "top-[9px] rotate-45" : "top-0"
                 }`}
               />
               <span
-                className={`w-full h-0.5 bg-[#d4af37] transition-all duration-300 ${
+                className={`absolute left-0 top-[9px] h-0.5 w-6 bg-[#d4af37] transition-opacity duration-300 ${
                   isMobileMenuOpen ? "opacity-0" : ""
                 }`}
               />
               <span
-                className={`w-full h-0.5 bg-[#d4af37] transition-all duration-300 ${
-                  isMobileMenuOpen ? "-rotate-45 -translate-y-2" : ""
+                className={`absolute left-0 h-0.5 w-6 bg-[#d4af37] transition-all duration-300 ${
+                  isMobileMenuOpen ? "top-[9px] -rotate-45" : "top-[18px]"
                 }`}
               />
-            </div>
+            </span>
           </button>
-
-          {/* Meniu Desktop Aliniat și Centrat */}
-          <nav className="hidden md:flex items-center gap-8" ref={navRef}>
-            <Link
-              href="/#despre"
-              className="text-sm lg:text-base font-bold text-gray-200 hover:text-[#d4af37] transition-colors tracking-wider uppercase"
-            >
-              Despre
-            </Link>
-            <Link
-              href="/#galerie"
-              className="text-sm lg:text-base font-bold text-gray-200 hover:text-[#d4af37] transition-colors tracking-wider uppercase"
-            >
-              Portofoliu
-            </Link>
-            <Link
-              href="/#contact-cta"
-              className="text-sm lg:text-base font-bold text-gray-200 hover:text-[#d4af37] transition-colors tracking-wider uppercase"
-            >
-              Contact
-            </Link>
-
-            {/* Buton Distinctiv "COD CLIENT" */}
-            <button
-              onClick={() => setIsCodeModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#d4af37] to-[#b8922d] text-[#1e1e1e] font-extrabold text-sm tracking-wider uppercase transition-all duration-200 shadow-md hover:shadow-xl hover:shadow-[#d4af37]/20 hover:scale-105 active:scale-95"
-            >
-              <KeyRound className="w-4 h-4" />
-              <span>Cod Client</span>
-            </button>
-          </nav>
-        </div>
-
-        {/* Meniu Mobil Dropdown */}
-        <div
-          className={`md:hidden fixed inset-0 top-20 bg-[#141414]/98 backdrop-blur-xl z-50 transition-all duration-300 ${
-            isMobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-          }`}
-        >
-          <div className="flex flex-col items-center justify-center gap-8 py-16 px-6 text-center">
-            <Link
-              href="/#despre"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="text-2xl font-bold text-white hover:text-[#d4af37] transition-colors"
-            >
-              DESPRE
-            </Link>
-            <Link
-              href="/#galerie"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="text-2xl font-bold text-white hover:text-[#d4af37] transition-colors"
-            >
-              PORTOFOLIU
-            </Link>
-            <Link
-              href="/#contact-cta"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="text-2xl font-bold text-white hover:text-[#d4af37] transition-colors"
-            >
-              CONTACT
-            </Link>
-
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                setIsCodeModalOpen(true);
-              }}
-              className="flex items-center justify-center gap-3 w-full max-w-xs py-3.5 px-6 rounded-full bg-gradient-to-r from-[#d4af37] to-[#b8922d] text-[#1e1e1e] font-extrabold text-base shadow-xl"
-            >
-              <KeyRound className="w-5 h-5" />
-              <span>ACCESEAZĂ GALERIE</span>
-            </button>
-          </div>
         </div>
       </header>
 
-      {/* Modal Introducere Cod Eveniment (Centrat, Clar, Cu Contrast Mare) */}
+      {/* Meniu mobil: in afara <header>, altfel backdrop-blur il limiteaza la inaltimea header-ului */}
+      <div
+        id="mobile-menu"
+        className={`fixed inset-x-0 bottom-0 top-20 z-50 overflow-y-auto bg-[#141414]/98 backdrop-blur-xl transition-opacity duration-300 md:hidden ${
+          isMobileMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-hidden={!isMobileMenuOpen}
+      >
+        <nav className="flex min-h-full flex-col items-center justify-center gap-8 px-6 py-16 text-center" aria-label="Navigare mobil">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setIsMobileMenuOpen(false)}
+              tabIndex={isMobileMenuOpen ? 0 : -1}
+              className="inline-flex h-12 items-center text-2xl font-bold uppercase text-white transition-colors hover:text-[#d4af37]"
+            >
+              {link.label}
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              setIsCodeModalOpen(true);
+            }}
+            tabIndex={isMobileMenuOpen ? 0 : -1}
+            className={`${goldButton} h-14 w-full max-w-xs px-6 text-base`}
+          >
+            <KeyRound className="h-5 w-5" />
+            <span>Accesează galeria</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Modal cod eveniment */}
       {isCodeModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          className="fixed inset-0 z-[55] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
           onClick={() => setIsCodeModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-md bg-[#1e1e1e] border-2 border-[#d4af37]/40 rounded-3xl p-6 sm:p-8 shadow-2xl text-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="code-modal-title"
+            className="relative w-full max-w-md rounded-3xl border-2 border-[#d4af37]/40 bg-[#1e1e1e] p-6 text-center shadow-2xl sm:p-8"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Buton Închidere X */}
             <button
+              type="button"
               onClick={() => setIsCodeModalOpen(false)}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-[#d4af37] text-gray-300 hover:text-[#1e1e1e] flex items-center justify-center transition-all"
+              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-gray-300 transition-colors hover:bg-[#d4af37] hover:text-[#1e1e1e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]"
               aria-label="Închide"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
 
-            {/* Pictogramă */}
-            <div className="w-14 h-14 rounded-2xl bg-[#d4af37]/15 text-[#d4af37] border border-[#d4af37]/30 flex items-center justify-center mx-auto mb-4 shadow-inner">
-              <KeyRound className="w-7 h-7" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/15 text-[#d4af37] shadow-inner">
+              <KeyRound className="h-7 w-7" />
             </div>
 
-            {/* Titlu și explicație clară */}
-            <h3 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
+            <h3 id="code-modal-title" className="mb-2 text-2xl font-extrabold text-white sm:text-3xl">
               Albumul Tău Foto
             </h3>
-            <p className="text-sm text-gray-300 mb-6 leading-relaxed">
+            <p className="mb-6 text-sm leading-relaxed text-gray-300">
               Introdu codul unic de 6 caractere primit de la fotograf pentru a vizualiza și descărca fotografiile evenimentului.
             </p>
 
-            {/* Formular Cod */}
-            <form onSubmit={handleOpenGallery} className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  maxLength={10}
-                  placeholder="ex: TIZFKD"
-                  value={galleryCode}
-                  onChange={(e) => setGalleryCode(e.target.value.toUpperCase())}
-                  className="w-full text-center tracking-[0.3em] text-2xl sm:text-3xl font-mono font-bold uppercase px-4 py-3.5 bg-black/50 border-2 border-[#d4af37]/50 rounded-2xl text-[#d4af37] placeholder-gray-600 focus:outline-none focus:border-[#d4af37] focus:ring-2 focus:ring-[#d4af37]/30 shadow-inner"
-                  autoFocus
-                  required
-                />
-              </div>
+            <form onSubmit={handleOpenGallery} className="space-y-4" noValidate>
+              <label htmlFor="gallery-code" className="sr-only">
+                Cod galerie
+              </label>
+              <input
+                id="gallery-code"
+                type="text"
+                inputMode="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={12}
+                placeholder="ex: TIZFKD"
+                value={galleryCode}
+                onChange={(e) => {
+                  setGalleryCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                  setCodeError(null);
+                }}
+                aria-invalid={!!codeError}
+                aria-describedby={codeError ? "gallery-code-error" : undefined}
+                className="w-full rounded-2xl border-2 border-[#d4af37]/50 bg-black/50 px-4 py-3.5 text-center font-mono text-2xl font-bold uppercase tracking-[0.3em] text-[#d4af37] shadow-inner placeholder:text-gray-600 focus:border-[#d4af37] focus:outline-none focus:ring-2 focus:ring-[#d4af37]/30 sm:text-3xl"
+                autoFocus
+              />
+              {codeError && (
+                <p id="gallery-code-error" className="text-sm text-red-400">
+                  {codeError}
+                </p>
+              )}
 
-              <button
-                type="submit"
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#d4af37] to-[#b8922d] text-[#1e1e1e] font-extrabold text-base tracking-wider uppercase hover:opacity-95 transition-all flex items-center justify-center gap-2 shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <span>Deschide Galeria</span>
-                <ArrowRight className="w-5 h-5" />
+              <button type="submit" className={`${goldButton} h-14 w-full rounded-2xl px-6 text-base`}>
+                <span>Deschide galeria</span>
+                <ArrowRight className="h-5 w-5" />
               </button>
             </form>
           </div>

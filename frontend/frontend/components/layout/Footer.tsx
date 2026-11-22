@@ -23,25 +23,25 @@ export default function Footer() {
             </p>
             <Link
               href="/"
-              className="text-base hover:text-[#f5e6ca] transition-colors"
+              className="inline-flex min-h-11 items-center text-base hover:text-[#f5e6ca] transition-colors"
             >
               Acasă
             </Link>
             <Link
               href="/#despre"
-              className="text-base hover:text-[#f5e6ca] transition-colors"
+              className="inline-flex min-h-11 items-center text-base hover:text-[#f5e6ca] transition-colors"
             >
               Despre
             </Link>
             <Link
               href="/#galerie"
-              className="text-base hover:text-[#f5e6ca] transition-colors"
+              className="inline-flex min-h-11 items-center text-base hover:text-[#f5e6ca] transition-colors"
             >
               Portofoliu
             </Link>
             <Link
               href="/#contact-cta"
-              className="text-base hover:text-[#f5e6ca] transition-colors"
+              className="inline-flex min-h-11 items-center text-base hover:text-[#f5e6ca] transition-colors"
             >
               Contact
             </Link>
@@ -53,13 +53,13 @@ export default function Footer() {
             </p>
             <a
               href={`mailto:${SITE.email}`}
-              className="text-base hover:text-[#f5e6ca] transition-colors break-all"
+              className="inline-flex min-h-11 items-center text-base hover:text-[#f5e6ca] transition-colors break-all"
             >
               {SITE.email}
             </a>
             <a
               href={`tel:${SITE.phone}`}
-              className="text-base hover:text-[#f5e6ca] transition-colors"
+              className="inline-flex min-h-11 items-center text-base hover:text-[#f5e6ca] transition-colors"
             >
               {SITE.phoneDisplay}
             </a>
@@ -67,7 +67,7 @@ export default function Footer() {
               href={SITE.instagram}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-base hover:text-[#f5e6ca] transition-colors"
+              className="inline-flex min-h-11 items-center text-base hover:text-[#f5e6ca] transition-colors"
             >
               Instagram
             </a>

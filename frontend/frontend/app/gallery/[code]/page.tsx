@@ -1,620 +1,347 @@
 "use client";
 
-import { useEffect, useState, use, useCallback } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Download,
-  CheckSquare,
-  Square,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Heart,
-  Share2,
-  ArrowLeft,
-  Sparkles,
-  Loader2,
-  AlertCircle
-} from "lucide-react";
+import { ArrowLeft, CheckSquare, Download, Heart, Share2, X } from "lucide-react";
+import Lightbox, { lightboxIconButton, type LightboxItem } from "@/components/gallery/Lightbox";
+import PhotoGrid from "@/components/client-gallery/PhotoGrid";
+import { GalleryEmptyState, GalleryErrorState, GallerySkeleton } from "@/components/client-gallery/GalleryStates";
+import { useToast } from "@/components/client-gallery/Toast";
+import { fetchGallery, GalleryError, galleryApi, type GalleryResponse } from "@/lib/api";
+import { startDownload } from "@/lib/download";
 
-interface PhotoDto {
-  id: number;
-  filename: string;
-  url: string;
-  thumbnailUrl: string;
-  fileId: string;
+/** Trebuie sa fie <= app.zip.max-files din backend */
+const MAX_ZIP_FILES = 500;
+
+const EVENT_LABELS: Record<string, string> = {
+  WEDDING: "💒 Nuntă",
+  SWEET_16: "🎂 Majorat",
+};
+
+const btnBase =
+  "inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl text-sm font-bold whitespace-nowrap transition-colors " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1e1e1e] " +
+  "disabled:opacity-50 disabled:cursor-not-allowed";
+const btnGhost = `${btnBase} bg-white/10 text-white hover:bg-white/20`;
+const btnPrimary = `${btnBase} bg-gradient-to-r from-[#d4af37] to-[#b8922d] text-[#1e1e1e] shadow-lg hover:opacity-90`;
+
+function useFavorites(code: string) {
+  const key = `fotoit:favorites:${code}`;
+  // Favoritele sunt afisate doar dupa ce galeria s-a incarcat in browser, deci citirea
+  // directa din localStorage nu produce diferente intre server si client.
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = window.localStorage.getItem(key);
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggle = useCallback(
+    (fileId: string) => {
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (next.has(fileId)) next.delete(fileId);
+        else next.add(fileId);
+        try {
+          window.localStorage.setItem(key, JSON.stringify([...next]));
+        } catch {
+          /* stocare indisponibila (mod privat) - favoritele raman doar in sesiune */
+        }
+        return next;
+      });
+    },
+    [key]
+  );
+
+  return { favorites, toggle };
 }
 
-interface GalleryResponse {
-  code: string;
-  eventType: string;
-  name: string;
-  description?: string;
-  photos: PhotoDto[];
-  totalPhotos: number;
-}
+export default function GalleryPage({ params }: { params: Promise<{ code: string }> }) {
+  const code = (use(params).code ?? "").toUpperCase();
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const [reloadKey, setReloadKey] = useState(0);
+  const requestKey = `${code}#${reloadKey}`;
+  // Rezultatul e legat de cererea care l-a produs; o cerere noua inseamna automat "se incarca"
+  const [result, setResult] = useState<{ key: string; gallery?: GalleryResponse; error?: GalleryError } | null>(null);
+  const current = result?.key === requestKey ? result : null;
+  const gallery = current?.gallery ?? null;
+  const error = current?.error ?? null;
 
-export default function GalleryPage({
-  params,
-}: {
-  params: Promise<{ code: string }>;
-}) {
-  const resolvedParams = use(params);
-  const code = resolvedParams.code?.toUpperCase();
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  const [gallery, setGallery] = useState<GalleryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Selecție poze
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
-
-  // Lightbox
-  const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
-  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
-
-  // Drag / swipe states for lightbox
-  const [dragStartX, setDragStartX] = useState<number | null>(null);
-  const [dragCurrentX, setDragCurrentX] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const { favorites, toggle: toggleFavorite } = useFavorites(code);
+  const { show: showToast, toast } = useToast();
 
   useEffect(() => {
-    async function fetchGallery() {
-      if (!code) return;
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(`${API_BASE_URL}/api/gallery/${code}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            throw new Error(`Evenimentul cu codul "${code}" nu a fost găsit.`);
-          }
-          throw new Error("Nu s-au putut încărca fotografiile evenimentului.");
-        }
-        const data: GalleryResponse = await res.json();
-        setGallery(data);
-      } catch (err: any) {
-        setError(err.message || "A apărut o eroare la conectare.");
-      } finally {
-        setLoading(false);
-      }
-    }
+    if (!code) return;
+    const controller = new AbortController();
+    fetchGallery(code, controller.signal)
+      .then((data) => setResult({ key: requestKey, gallery: data }))
+      .catch((err: unknown) => {
+        if ((err as Error).name === "AbortError") return;
+        setResult({
+          key: requestKey,
+          error: err instanceof GalleryError ? err : new GalleryError("A apărut o eroare neașteptată.", 0),
+        });
+      });
+    return () => controller.abort();
+  }, [code, requestKey]);
 
-    fetchGallery();
-  }, [code]);
+  useEffect(() => {
+    if (gallery?.name) document.title = `${gallery.name} | FotoIT`;
+  }, [gallery?.name]);
 
-  const nextPhoto = useCallback(() => {
-    if (!gallery || gallery.photos.length === 0) return;
-    setActivePhotoIndex((prev) =>
-      prev !== null ? (prev + 1) % gallery.photos.length : 0
-    );
-  }, [gallery]);
+  const allPhotos = useMemo(() => gallery?.photos ?? [], [gallery]);
+  const photos = useMemo(
+    () => (favoritesOnly ? allPhotos.filter((p) => favorites.has(p.fileId)) : allPhotos),
+    [allPhotos, favorites, favoritesOnly]
+  );
 
-  const prevPhoto = useCallback(() => {
-    if (!gallery || gallery.photos.length === 0) return;
-    setActivePhotoIndex((prev) =>
-      prev !== null
-        ? (prev - 1 + gallery.photos.length) % gallery.photos.length
-        : gallery.photos.length - 1
-    );
-  }, [gallery]);
+  const lightboxItems: LightboxItem[] = useMemo(
+    () =>
+      photos.map((p) => ({
+        id: p.fileId,
+        src: galleryApi.preview(p.fileId),
+        placeholder: galleryApi.thumbnail(p.fileId),
+        alt: p.filename,
+        title: p.filename,
+      })),
+    [photos]
+  );
 
-  const closeLightbox = useCallback(() => {
-    setActivePhotoIndex(null);
-    setIsDragging(false);
-    setDragStartX(null);
-    setDragCurrentX(null);
+  const toggleSelect = useCallback((fileId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(fileId)) next.delete(fileId);
+      else next.add(fileId);
+      return next;
+    });
   }, []);
 
-  // Tastatură pentru lightbox
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (activePhotoIndex === null || !gallery) return;
-      if (e.key === "Escape") closeLightbox();
-      if (e.key === "ArrowLeft") prevPhoto();
-      if (e.key === "ArrowRight") nextPhoto();
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activePhotoIndex, gallery, prevPhoto, nextPhoto, closeLightbox]);
-
-  // Gesturi Mouse Drag & Touch Swipe pentru Lightbox
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setDragStartX(e.touches[0].clientX);
-    setDragCurrentX(e.touches[0].clientX);
-    setIsDragging(true);
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelected(new Set());
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || dragStartX === null) return;
-    setDragCurrentX(e.touches[0].clientX);
-  };
+  const allVisibleSelected = photos.length > 0 && photos.every((p) => selected.has(p.fileId));
+  const toggleSelectAll = () =>
+    setSelected(allVisibleSelected ? new Set() : new Set(photos.map((p) => p.fileId)));
 
-  const handleTouchEnd = () => {
-    if (!isDragging || dragStartX === null || dragCurrentX === null) {
-      setIsDragging(false);
+  const downloadSelected = () => {
+    if (!gallery || selected.size === 0) return;
+    if (selected.size > MAX_ZIP_FILES) {
+      showToast(`Poți descărca maxim ${MAX_ZIP_FILES} fotografii o dată.`);
       return;
     }
-    const deltaX = dragCurrentX - dragStartX;
-    if (deltaX > 50) {
-      prevPhoto();
-    } else if (deltaX < -50) {
-      nextPhoto();
-    }
-    setIsDragging(false);
-    setDragStartX(null);
-    setDragCurrentX(null);
+    startDownload(galleryApi.zip(gallery.code, gallery.name), {
+      method: "POST",
+      fields: { fileIds: [...selected] },
+    });
+    showToast(`Se pregătește arhiva cu ${selected.size} fotografii. Descărcarea începe imediat.`);
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setDragStartX(e.clientX);
-    setDragCurrentX(e.clientX);
-    setIsDragging(true);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || dragStartX === null) return;
-    setDragCurrentX(e.clientX);
-  };
-
-  const handleMouseUp = () => {
-    if (!isDragging || dragStartX === null || dragCurrentX === null) {
-      setIsDragging(false);
-      return;
-    }
-    const deltaX = dragCurrentX - dragStartX;
-    if (deltaX > 60) {
-      prevPhoto();
-    } else if (deltaX < -60) {
-      nextPhoto();
-    }
-    setIsDragging(false);
-    setDragStartX(null);
-    setDragCurrentX(null);
-  };
-
-  // Toggle selecție pentru o poză
-  const toggleSelectPhoto = (fileId: string) => {
-    setSelectedFileIds((prev) =>
-      prev.includes(fileId) ? prev.filter((id) => id !== fileId) : [...prev, fileId]
-    );
-  };
-
-  // Toggle favorite
-  const toggleFavorite = (fileId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setFavorites((prev) =>
-      prev.includes(fileId) ? prev.filter((id) => id !== fileId) : [...prev, fileId]
-    );
-  };
-
-  // Selectează / deselectează tot
-  const handleSelectAll = () => {
+  const downloadAll = () => {
     if (!gallery) return;
-    if (selectedFileIds.length === gallery.photos.length) {
-      setSelectedFileIds([]);
-    } else {
-      setSelectedFileIds(gallery.photos.map((p) => p.fileId));
-    }
+    startDownload(galleryApi.downloadAll(gallery.code));
+    showToast("Se pregătește arhiva cu toate fotografiile. Descărcarea începe imediat.");
   };
 
-  // Descărcare ZIP selecție
-  const downloadZip = async (fileIds: string[], customName?: string) => {
-    if (!gallery || fileIds.length === 0) return;
+  const share = async () => {
+    const url = window.location.href;
     try {
-      setIsDownloadingZip(true);
-      const res = await fetch(
-        `${API_BASE_URL}/api/gallery/download/zip?galleryName=${encodeURIComponent(
-          customName || gallery.name || code
-        )}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fileIds),
-        }
-      );
-
-      if (!res.ok) throw new Error("Eroare la generarea arhivei ZIP");
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${gallery.name || "FotoIT_" + code}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert("Descărcarea arhivei a eșuat: " + err.message);
-    } finally {
-      setIsDownloadingZip(false);
+      if (navigator.share) {
+        await navigator.share({ title: gallery?.name ?? "Galerie FotoIT", url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      showToast("Link-ul galeriei a fost copiat.");
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") showToast("Link-ul nu a putut fi copiat.");
     }
   };
 
-  // Copiere link partajare
-  const handleShare = () => {
-    if (typeof window !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      alert("Link-ul galeriei a fost copiat în clipboard!");
-    }
-  };
-
-  const activePhoto =
-    gallery && activePhotoIndex !== null ? gallery.photos[activePhotoIndex] : null;
-
-  const dragOffset =
-    isDragging && dragStartX !== null && dragCurrentX !== null
-      ? dragCurrentX - dragStartX
-      : 0;
-
-  const eventLabel =
-    gallery?.eventType === "WEDDING"
-      ? "💒 Nuntă"
-      : gallery?.eventType === "SWEET_16"
-      ? "🎂 Majorat"
-      : "🎉 Eveniment";
+  const hasPhotos = allPhotos.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#141414] text-white">
-      {/* Header Galerie (Centrat, Curat, Cu Toate Acțiunile Vizibile) */}
-      <header className="sticky top-0 z-30 bg-[#1e1e1e]/95 backdrop-blur-md border-b border-[#d4af37]/20 px-4 sm:px-6 lg:px-8 py-4 shadow-lg">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+    <div className="min-h-[calc(100vh-5rem)] bg-[#141414] text-white">
+      {/* Bara galeriei: lipita sub header-ul site-ului (h-20) */}
+      <div className="sticky top-20 z-30 border-b border-[#d4af37]/20 bg-[#1e1e1e]/95 shadow-lg backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-4 py-4 sm:px-6 md:flex-row md:justify-between lg:px-8">
+          <div className="flex w-full min-w-0 items-center gap-3 md:w-auto">
             <Link
               href="/"
-              className="p-2.5 rounded-full bg-white/5 hover:bg-[#d4af37] text-[#d4af37] hover:text-[#1e1e1e] transition-all shadow-sm"
-              title="Înapoi pe FotoIT"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5 text-[#d4af37] transition-colors hover:bg-[#d4af37] hover:text-[#1e1e1e]"
+              aria-label="Înapoi pe FotoIT"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="h-5 w-5" />
             </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#d4af37]/20 text-[#d4af37] font-bold">
-                  {eventLabel}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-[#d4af37]/20 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-[#d4af37]">
+                  {EVENT_LABELS[gallery?.eventType ?? ""] ?? "🎉 Eveniment"}
                 </span>
-                <span className="text-xs text-gray-400 font-mono tracking-widest uppercase">
-                  Cod: {code}
-                </span>
+                <span className="font-mono text-xs uppercase tracking-widest text-gray-400">Cod: {code}</span>
               </div>
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-white tracking-wide mt-0.5">
+              <h1 className="mt-0.5 truncate text-xl font-extrabold tracking-wide sm:text-2xl md:text-3xl">
                 {gallery?.name || `Galerie ${code}`}
               </h1>
             </div>
           </div>
 
-          {/* Butoane de acțiune */}
-          {gallery && gallery.photos.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <button
-                onClick={() => {
-                  setIsSelectionMode(!isSelectionMode);
-                  if (isSelectionMode) setSelectedFileIds([]);
-                }}
-                className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm ${
-                  isSelectionMode
-                    ? "bg-[#d4af37] text-[#1e1e1e]"
-                    : "bg-white/10 text-white hover:bg-white/20"
-                }`}
-              >
-                <CheckSquare className="w-4 h-4" />
-                <span>{isSelectionMode ? "Gata Selecție" : "Selectează Poze"}</span>
-              </button>
-
-              {isSelectionMode && (
-                <button
-                  onClick={handleSelectAll}
-                  className="px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-white/10 hover:bg-white/20 text-gray-200 transition-colors"
-                >
-                  {selectedFileIds.length === gallery.photos.length
-                    ? "Deselectează tot"
-                    : "Selectează tot"}
-                </button>
-              )}
-
-              {selectedFileIds.length > 0 ? (
-                <button
-                  onClick={() => downloadZip(selectedFileIds)}
-                  disabled={isDownloadingZip}
-                  className="px-5 py-2.5 rounded-xl text-sm font-extrabold bg-[#d4af37] text-[#1e1e1e] hover:bg-[#b8922d] transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
-                >
-                  {isDownloadingZip ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  <span>Descarcă ({selectedFileIds.length})</span>
-                </button>
+          {hasPhotos && (
+            <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:gap-3 md:w-auto md:justify-end">
+              {selectionMode ? (
+                <>
+                  <button type="button" onClick={toggleSelectAll} className={btnGhost}>
+                    {allVisibleSelected ? "Deselectează tot" : "Selectează tot"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={downloadSelected}
+                    disabled={selected.size === 0}
+                    className={btnPrimary}
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Descarcă ({selected.size})</span>
+                  </button>
+                  <button type="button" onClick={exitSelection} className={btnGhost} aria-label="Ieși din selecție">
+                    <X className="h-4 w-4" />
+                    <span>Gata</span>
+                  </button>
+                </>
               ) : (
-                <button
-                  onClick={() =>
-                    downloadZip(gallery.photos.map((p) => p.fileId))
-                  }
-                  disabled={isDownloadingZip}
-                  className="px-5 py-2.5 rounded-xl text-sm font-extrabold bg-gradient-to-r from-[#d4af37] to-[#b8922d] hover:opacity-95 text-[#1e1e1e] transition-all flex items-center gap-2 shadow-lg"
-                >
-                  {isDownloadingZip ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  <span>Descarcă Tot (.ZIP)</span>
-                </button>
+                <>
+                  <button type="button" onClick={() => setSelectionMode(true)} className={btnGhost}>
+                    <CheckSquare className="h-4 w-4" />
+                    <span>Selectează</span>
+                  </button>
+                  <button type="button" onClick={downloadAll} className={btnPrimary}>
+                    <Download className="h-4 w-4" />
+                    <span>Descarcă tot</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={share}
+                    className={`${btnGhost} w-11 px-0`}
+                    aria-label="Distribuie galeria"
+                    title="Distribuie galeria"
+                  >
+                    <Share2 className="h-5 w-5" />
+                  </button>
+                </>
               )}
-
-              <button
-                onClick={handleShare}
-                className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-gray-200 transition-colors"
-                title="Copiază link-ul galeriei"
-              >
-                <Share2 className="w-5 h-5" />
-              </button>
             </div>
           )}
         </div>
-      </header>
+      </div>
 
-      {/* Corp Pagina */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {loading && (
-          <div className="py-32 flex flex-col items-center justify-center text-center">
-            <Loader2 className="w-12 h-12 text-[#d4af37] animate-spin mb-4" />
-            <p className="text-gray-300 text-lg font-medium">
-              Se încarcă fotografiile evenimentului...
-            </p>
-          </div>
-        )}
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+        {!gallery && !error && <GallerySkeleton />}
 
         {error && (
-          <div className="py-24 max-w-md mx-auto text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-              <AlertCircle className="w-8 h-8" />
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
-              Galerie indisponibilă
-            </h2>
-            <p className="text-gray-400 mb-8 leading-relaxed">{error}</p>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-gradient-to-r from-[#d4af37] to-[#b8922d] text-[#1e1e1e] font-extrabold hover:opacity-95 transition-all shadow-lg"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Înapoi pe FotoIT</span>
-            </Link>
-          </div>
+          <GalleryErrorState
+            message={error.message}
+            canRetry={error.status !== 404 && error.status !== 400}
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
         )}
 
         {gallery && (
           <>
-            {/* Descriere dacă există */}
             {gallery.description && (
-              <div className="mb-8 p-6 rounded-2xl bg-[#1e1e1e] border border-[#d4af37]/20 text-gray-300 text-base leading-relaxed text-center max-w-3xl mx-auto shadow-md">
+              <p className="mx-auto mb-8 max-w-3xl rounded-2xl border border-[#d4af37]/20 bg-[#1e1e1e] p-6 text-center leading-relaxed text-gray-300 shadow-md">
                 {gallery.description}
+              </p>
+            )}
+
+            {hasPhotos && (
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3 text-sm font-medium text-gray-400">
+                <span>
+                  {selectionMode
+                    ? `${selected.size} din ${photos.length} selectate`
+                    : `${allPhotos.length} fotografii în album`}
+                </span>
+                <div className="inline-flex rounded-full bg-white/5 p-1" role="group" aria-label="Filtru fotografii">
+                  <button
+                    type="button"
+                    onClick={() => setFavoritesOnly(false)}
+                    aria-pressed={!favoritesOnly}
+                    className={`inline-flex h-8 items-center rounded-full px-4 text-xs font-bold transition-colors ${
+                      !favoritesOnly ? "bg-[#d4af37] text-[#1e1e1e]" : "text-gray-300 hover:text-white"
+                    }`}
+                  >
+                    Toate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFavoritesOnly(true)}
+                    aria-pressed={favoritesOnly}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-full px-4 text-xs font-bold transition-colors ${
+                      favoritesOnly ? "bg-[#d4af37] text-[#1e1e1e]" : "text-gray-300 hover:text-white"
+                    }`}
+                  >
+                    <Heart className={`h-3.5 w-3.5 ${favoritesOnly ? "fill-current" : ""}`} />
+                    Favorite ({favorites.size})
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Bara de status */}
-            <div className="flex items-center justify-between text-sm text-gray-400 mb-6 pb-3 border-b border-white/10 font-medium">
-              <span>{gallery.photos.length} fotografii în album</span>
-              {favorites.length > 0 && (
-                <span className="text-[#d4af37] flex items-center gap-1.5 font-bold">
-                  <Heart className="w-4 h-4 fill-[#d4af37]" /> {favorites.length}{" "}
-                  favorite
-                </span>
-              )}
-            </div>
-
-            {/* Grid Fotografii */}
-            {gallery.photos.length === 0 ? (
-              <div className="text-center py-28 text-gray-400">
-                <Sparkles className="w-14 h-14 text-[#d4af37] mx-auto mb-4 opacity-70" />
-                <p className="text-xl font-bold text-white mb-1">
-                  Albumul nu conține încă fotografii sincronizate.
-                </p>
-                <p className="text-sm text-gray-400">
-                  Te rugăm să revii curând sau să iei legătura cu fotograful.
-                </p>
-              </div>
+            {photos.length === 0 ? (
+              <GalleryEmptyState favoritesOnly={favoritesOnly && hasPhotos} />
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
-                {gallery.photos.map((photo, index) => {
-                  const isSelected = selectedFileIds.includes(photo.fileId);
-                  const isFav = favorites.includes(photo.fileId);
-
-                  return (
-                    <div
-                      key={photo.fileId}
-                      className={`group relative aspect-[4/3] rounded-xl overflow-hidden bg-white/5 cursor-pointer border-2 transition-all duration-300 ${
-                        isSelected
-                          ? "border-[#d4af37] ring-4 ring-[#d4af37]/30 scale-[0.98]"
-                          : "border-transparent hover:border-[#d4af37]/70 hover:shadow-xl"
-                      }`}
-                      onClick={() => {
-                        if (isSelectionMode) {
-                          toggleSelectPhoto(photo.fileId);
-                        } else {
-                          setActivePhotoIndex(index);
-                        }
-                      }}
-                    >
-                      <img
-                        src={`${API_BASE_URL}/api/gallery/thumbnail/${photo.fileId}`}
-                        alt={photo.filename}
-                        loading="lazy"
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-
-                      {/* Overlay discret */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3">
-                        <span className="text-xs text-white truncate max-w-[70%] font-medium">
-                          {photo.filename}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={(e) => toggleFavorite(photo.fileId, e)}
-                            className="p-2 rounded-full bg-black/60 text-white hover:text-red-400 transition-colors"
-                            title="Favorite"
-                          >
-                            <Heart
-                              className={`w-4 h-4 ${
-                                isFav ? "fill-red-500 text-red-500" : ""
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Checkbox selecție */}
-                      {isSelectionMode && (
-                        <div className="absolute top-2 left-2 z-10">
-                          <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shadow-lg ${
-                              isSelected
-                                ? "bg-[#d4af37] text-[#1e1e1e]"
-                                : "bg-black/70 text-white border-2 border-white/40"
-                            }`}
-                          >
-                            {isSelected ? (
-                              <CheckSquare className="w-5 h-5" />
-                            ) : (
-                              <Square className="w-5 h-5" />
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <PhotoGrid
+                key={favoritesOnly ? "fav" : "all"}
+                photos={photos}
+                selectionMode={selectionMode}
+                selected={selected}
+                favorites={favorites}
+                onOpen={setActiveIndex}
+                onToggleSelect={toggleSelect}
+                onToggleFavorite={toggleFavorite}
+              />
             )}
           </>
         )}
-      </main>
+      </section>
 
-      {/* LIGHTBOX CU SLIDE DE PE MOUSE / TOUCH + BUTOANE MARI */}
-      {activePhoto && activePhotoIndex !== null && gallery && (
-        <div
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between select-none"
-          onClick={closeLightbox}
-        >
-          {/* Bara de sus Lightbox */}
-          <div
-            className="p-4 sm:p-6 flex items-center justify-between text-white bg-gradient-to-b from-black/80 to-transparent relative z-30"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full bg-[#d4af37]/20 text-[#d4af37] text-xs font-bold tracking-wider">
-                {activePhotoIndex + 1} / {gallery.photos.length}
-              </span>
-              <span className="text-sm font-medium text-gray-300 hidden sm:inline truncate max-w-xs">
-                {activePhoto.filename}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-3">
+      {activeIndex !== null && lightboxItems[activeIndex] && (
+        <Lightbox
+          items={lightboxItems}
+          index={activeIndex}
+          onIndexChange={setActiveIndex}
+          onClose={() => setActiveIndex(null)}
+          actions={(item) => (
+            <>
               <a
-                href={`${API_BASE_URL}/api/gallery/download/${activePhoto.fileId}?filename=${encodeURIComponent(
-                  activePhoto.filename
-                )}`}
-                className="p-2.5 rounded-full bg-white/10 hover:bg-[#d4af37] text-white hover:text-[#1e1e1e] transition-colors shadow-lg"
-                title="Descarcă poza originală"
+                href={galleryApi.download(item.id)}
+                className={lightboxIconButton}
+                aria-label="Descarcă originalul"
+                title="Descarcă originalul"
               >
-                <Download className="w-5 h-5" />
+                <Download className="h-5 w-5" />
               </a>
-
               <button
-                onClick={() => toggleFavorite(activePhoto.fileId)}
-                className="p-2.5 rounded-full bg-white/10 hover:text-red-400 transition-colors shadow-lg"
-                title="Favorite"
+                type="button"
+                onClick={() => toggleFavorite(item.id)}
+                className={lightboxIconButton}
+                aria-label={favorites.has(item.id) ? "Scoate de la favorite" : "Adaugă la favorite"}
+                aria-pressed={favorites.has(item.id)}
               >
-                <Heart
-                  className={`w-5 h-5 ${
-                    favorites.includes(activePhoto.fileId)
-                      ? "fill-red-500 text-red-500"
-                      : ""
-                  }`}
-                />
+                <Heart className={`h-5 w-5 ${favorites.has(item.id) ? "fill-red-500 text-red-500" : ""}`} />
               </button>
-
-              <button
-                onClick={closeLightbox}
-                className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors shadow-lg"
-                title="Închide (Esc)"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-
-          {/* Zona centrală cu imagine și gesturi mouse/touch */}
-          <div
-            className="relative flex-1 flex items-center justify-center p-2 sm:p-6 overflow-hidden cursor-grab active:cursor-grabbing"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
-            {/* Buton Anterior (Mare, Vizibil, Z-Index Ridicat) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                prevPhoto();
-              }}
-              className="absolute left-3 sm:left-6 z-30 w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-black/60 hover:bg-[#d4af37] text-white hover:text-[#1e1e1e] border border-white/20 hover:border-[#d4af37] flex items-center justify-center transition-all duration-200 shadow-2xl hover:scale-110 active:scale-90"
-              title="Anterior (Săgeată stânga)"
-            >
-              <ChevronLeft className="w-8 h-8 sm:w-10 sm:h-10" />
-            </button>
-
-            {/* Fotografie cu deplasare drag */}
-            <div
-              className="relative max-h-[82vh] max-w-full transition-transform duration-150 ease-out"
-              style={{
-                transform: `translateX(${dragOffset}px)`,
-              }}
-            >
-              <img
-                src={`${API_BASE_URL}/api/gallery/image/${activePhoto.fileId}`}
-                alt={activePhoto.filename}
-                className="max-h-[82vh] max-w-full object-contain rounded-lg shadow-2xl pointer-events-none select-none"
-                draggable={false}
-              />
-            </div>
-
-            {/* Buton Următor (Mare, Vizibil, Z-Index Ridicat) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                nextPhoto();
-              }}
-              className="absolute right-3 sm:right-6 z-30 w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-black/60 hover:bg-[#d4af37] text-white hover:text-[#1e1e1e] border border-white/20 hover:border-[#d4af37] flex items-center justify-center transition-all duration-200 shadow-2xl hover:scale-110 active:scale-90"
-              title="Următor (Săgeată dreapta)"
-            >
-              <ChevronRight className="w-8 h-8 sm:w-10 sm:h-10" />
-            </button>
-          </div>
-
-          {/* Footer Lightbox cu indicații */}
-          <div
-            className="p-3 text-center text-xs text-gray-400 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span>↔️ Trage cu mouse-ul sau glisează pe ecran pentru navigare</span>
-            <span className="hidden sm:inline">• Săgeți tastatură • Esc pentru închidere</span>
-          </div>
-        </div>
+            </>
+          )}
+        />
       )}
+
+      {toast}
     </div>
   );
 }

@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { KeyRound, ArrowRight, Camera, Sparkles } from "lucide-react";
+import { KeyRound, Sparkles } from "lucide-react";
 import GallerySwiper from "@/components/gallery/GallerySwiper";
 import ContactCtaSection from "@/components/sections/ContactCtaSection";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
 }
+
+/** Toate butoanele din hero au aceeasi inaltime, bordura si aliniere */
+const heroButton =
+  "inline-flex h-14 items-center justify-center gap-2 rounded-full border px-8 text-base sm:text-lg " +
+  "transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 " +
+  "focus-visible:ring-[#d4af37] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1e1e1e]";
 
 /**
  * Pagina principală FotoIT — site de prezentare + acces galerie client
@@ -18,6 +24,7 @@ export default function Home() {
   const heroRef = useRef<HTMLDivElement>(null);
   const aboutRef = useRef<HTMLElement>(null);
   const galleryRef = useRef<HTMLElement>(null);
+  const [profileFailed, setProfileFailed] = useState(false);
 
   useEffect(() => {
     // Animatie Hero la încărcare
@@ -90,47 +97,34 @@ export default function Home() {
             <span>Fotografie Profesională de Eveniment</span>
           </div>
 
-          <div className="hero-animate space-y-2 mb-6">
-            <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-white font-['Dancing_Script'] drop-shadow-xl leading-tight">
-              Prinde Momente
-            </h1>
-            <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-[#d4af37] font-['Dancing_Script'] drop-shadow-xl leading-tight">
-              Modelează Amintiri
-            </h1>
-          </div>
+          <h1 className="hero-animate mb-6 flex flex-col gap-2 text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-bold font-['Dancing_Script'] drop-shadow-xl leading-tight">
+            <span className="text-white">Prinde Momente</span>
+            <span className="text-[#d4af37]">Modelează Amintiri</span>
+          </h1>
 
           <p className="hero-animate text-base sm:text-xl text-gray-300 max-w-2xl mx-auto mb-10 leading-relaxed font-light">
             Surprindem emoții autentice, zâmbete naturale și povești de neuitat pentru nunți, majorate și evenimente speciale.
           </p>
 
           {/* Butoane de Acțiune (Centrate & Vizibile) */}
-          <div className="hero-animate flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-5 max-w-xl mx-auto">
-            <a
-              href="#galerie"
-              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-[#d4af37] to-[#b8922d] text-[#1e1e1e] text-base sm:text-lg font-extrabold rounded-full hover:opacity-95 transition-all shadow-xl hover:shadow-[#d4af37]/20 hover:scale-105 active:scale-95 text-center"
-            >
+          <div className="hero-animate mx-auto flex w-full max-w-sm flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:items-center sm:gap-4">
+            <a href="#galerie" className={`${heroButton} border-transparent bg-gradient-to-r from-[#d4af37] to-[#b8922d] font-extrabold text-[#1e1e1e] shadow-xl hover:shadow-[#d4af37]/20 hover:brightness-105`}>
               Vezi Portofoliul
             </a>
 
-            <button
-              onClick={openCodeModal}
-              className="w-full sm:w-auto px-8 py-4 bg-white/10 hover:bg-[#d4af37] text-white hover:text-[#1e1e1e] border border-[#d4af37]/40 text-base sm:text-lg font-bold rounded-full transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-            >
-              <KeyRound className="w-5 h-5 text-[#d4af37] group-hover:text-[#1e1e1e]" />
+            <button type="button" onClick={openCodeModal} className={`${heroButton} group border-[#d4af37]/40 bg-white/10 font-bold text-white shadow-lg hover:bg-[#d4af37] hover:text-[#1e1e1e]`}>
+              <KeyRound className="h-5 w-5 text-[#d4af37] transition-colors group-hover:text-[#1e1e1e]" />
               <span>Cod Client</span>
             </button>
 
-            <a
-              href="#contact-cta"
-              className="w-full sm:w-auto px-8 py-4 text-gray-300 hover:text-white border border-white/20 hover:border-white/40 text-base sm:text-lg font-medium rounded-full transition-all hover:bg-white/5 text-center"
-            >
+            <a href="#contact-cta" className={`${heroButton} border-white/20 font-semibold text-gray-300 hover:border-white/40 hover:bg-white/5 hover:text-white`}>
               Contact
             </a>
           </div>
         </div>
 
         {/* Indicator scroll jos */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-60">
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 hidden flex-col items-center gap-2 opacity-60 sm:flex [@media(max-height:700px)]:hidden" aria-hidden>
           <span className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Scroll</span>
           <div className="w-0.5 h-8 bg-gradient-to-b from-[#d4af37] to-transparent animate-pulse" />
         </div>
@@ -148,19 +142,20 @@ export default function Home() {
             <div className="about-fade flex justify-center order-2 md:order-1">
               <div className="relative">
                 <div className="absolute -inset-2 bg-gradient-to-tr from-[#d4af37] to-[#f5e6ca] rounded-full blur-xl opacity-40 animate-pulse" />
-                <img
-                  src="/profil.jpg"
-                  alt="Alex — Fotograf FotoIT"
-                  className="relative w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 rounded-full object-cover border-4 border-[#d4af37] shadow-2xl z-10"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                    const parent = (e.target as HTMLImageElement).parentElement;
-                    if (parent) {
-                      parent.innerHTML =
-                        '<div class="w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 rounded-full bg-gradient-to-br from-[#d4af37] to-[#b8922d] flex flex-col items-center justify-center text-white shadow-2xl"><span class="text-5xl font-bold">A</span><span class="text-sm font-semibold mt-1">Alex FotoIT</span></div>';
-                    }
-                  }}
-                />
+                {profileFailed ? (
+                  <div className="relative z-10 flex h-56 w-56 flex-col items-center justify-center rounded-full bg-gradient-to-br from-[#d4af37] to-[#b8922d] text-white shadow-2xl sm:h-64 sm:w-64 md:h-72 md:w-72">
+                    <span className="text-5xl font-bold">A</span>
+                    <span className="mt-1 text-sm font-semibold">Alex FotoIT</span>
+                  </div>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src="/profil.jpg"
+                    alt="Alex — Fotograf FotoIT"
+                    className="relative z-10 h-56 w-56 rounded-full border-4 border-[#d4af37] object-cover shadow-2xl sm:h-64 sm:w-64 md:h-72 md:w-72"
+                    onError={() => setProfileFailed(true)}
+                  />
+                )}
               </div>
             </div>
 
@@ -184,11 +179,11 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-4">
-                <div className="px-4 py-2 rounded-xl bg-neutral-100 border border-neutral-200 text-xs sm:text-sm font-semibold text-neutral-800">
+              <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
+                <div className="inline-flex items-center px-4 py-2 rounded-xl bg-neutral-100 border border-neutral-200 text-xs sm:text-sm font-semibold text-neutral-800">
                   📸 Echipament Profesional
                 </div>
-                <div className="px-4 py-2 rounded-xl bg-neutral-100 border border-neutral-200 text-xs sm:text-sm font-semibold text-neutral-800">
+                <div className="inline-flex items-center px-4 py-2 rounded-xl bg-neutral-100 border border-neutral-200 text-xs sm:text-sm font-semibold text-neutral-800">
                   ✨ Editare Cromatică Dedicată
                 </div>
               </div>
