@@ -27,3 +27,6 @@ Thumbs.db
 
 # Variabile locale backend
 backend/local.env
+
+# Backup-uri baza de date
+backups/

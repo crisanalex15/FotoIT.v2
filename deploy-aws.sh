@@ -113,7 +113,7 @@ run_remote "echo 'Conectat cu succes!'"
 
 echo -e "${YELLOW}[2/11] Actualizare sistem și instalare dependențe...${NC}"
 run_remote "sudo apt-get update -y"
-run_remote "sudo apt-get install -y curl wget git unzip software-properties-common"
+run_remote "sudo apt-get install -y curl wget git unzip software-properties-common sqlite3"
 
 echo -e "${YELLOW}[3/11] Instalare Java 21 (LTS)...${NC}"
 run_remote "sudo apt-get install -y openjdk-21-jdk || sudo apt-get install -y default-jdk"
@@ -144,13 +144,29 @@ echo -e "${YELLOW}[9/11] Copiere cod backend și frontend (inclusiv credențiale
 # Determină directorul de bază al proiectului (unde e scriptul)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Copiere backend (inclusiv toate fișierele de configurare)..."
-run_remote "rm -rf /opt/fotoit/backend/* /opt/fotoit/backend/.* 2>/dev/null || true"
-run_remote "mkdir -p /opt/fotoit/backend"
+echo "Backup baza de date de pe server (daca exista)..."
+run_remote "mkdir -p /opt/fotoit/backups && if [ -f /opt/fotoit/backend/fotoit.db ]; then
+    TS=\$(date +%Y-%m-%d_%H%M%S)
+    # sqlite3 .backup include si datele din fisierul WAL; fallback la copiere simpla
+    if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 /opt/fotoit/backend/fotoit.db \".backup '/opt/fotoit/backups/fotoit_\$TS.db'\"
+    else
+        cp /opt/fotoit/backend/fotoit.db* /opt/fotoit/backups/ 2>/dev/null
+        for f in /opt/fotoit/backups/fotoit.db*; do mv \"\$f\" \"\${f/fotoit.db/fotoit_\$TS.db}\"; done
+    fi
+    echo \"✓ Backup salvat in /opt/fotoit/backups (fotoit_\$TS.db)\"
+    # Pastreaza doar ultimele 20 de backup-uri
+    ls -1t /opt/fotoit/backups/fotoit_*.db 2>/dev/null | tail -n +21 | xargs -r rm -f
+else
+    echo 'Nu exista baza de date pe server (prima instalare).'
+fi"
 
-# Copiere backend - folosim tar pentru a copia structura corectă
+echo "Copiere backend (baza de date, cache-ul si credentialele locale raman neatinse pe server)..."
+run_remote "mkdir -p /opt/fotoit/backend && cd /opt/fotoit/backend && find . -mindepth 1 -maxdepth 1 ! -name 'fotoit.db*' ! -name 'cache' ! -name 'local.env' -exec rm -rf {} +"
+
+# Copiere backend - fara baza de date locala, cache, build si fisiere locale
 echo "Copiere structură backend cu tar..."
-(cd "$PROJECT_ROOT/backend" && tar czf - .) | ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$EC2_IP" "cd /opt/fotoit/backend && tar xzf -"
+(cd "$PROJECT_ROOT/backend" && tar czf - --exclude='./fotoit.db*' --exclude='./cache' --exclude='./target' --exclude='./local.env' .) | ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@$EC2_IP" "cd /opt/fotoit/backend && tar xzf -"
 
 # Verifică dacă pom.xml a fost copiat corect
 echo "Verificare structură backend..."
@@ -180,6 +196,20 @@ run_remote "mkdir -p /opt/fotoit/frontend"
 
 echo -e "${YELLOW}[10/11] Build și configurare aplicații...${NC}"
 
+# Variabile de productie pentru backend: create o singura data, apoi pastrate intre deploy-uri
+echo "Configurare variabile backend (local.env pe server)..."
+run_remote "if [ ! -f /opt/fotoit/backend/local.env ]; then
+    PASS=\$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)
+    printf 'ADMIN_PASSWORD=%s
+CORS_ALLOWED_ORIGINS=http://$EC2_IP
+THYMELEAF_CACHE=true
+' \"\$PASS\" > /opt/fotoit/backend/local.env
+    chmod 600 /opt/fotoit/backend/local.env
+    echo \"✓ Parola admin generata: \$PASS  (o gasesti oricand in /opt/fotoit/backend/local.env)\"
+else
+    echo '✓ local.env existent pastrat (parola admin neschimbata)'
+fi"
+
 # Build backend
 echo "Building backend..."
 run_remote "cd /opt/fotoit/backend && mvn clean package -DskipTests"
@@ -208,6 +238,7 @@ After=network.target
 Type=simple
 User=$SSH_USER
 WorkingDirectory=/opt/fotoit/backend
+EnvironmentFile=-/opt/fotoit/backend/local.env
 ExecStart=/usr/bin/java -jar /opt/fotoit/backend/target/Project-0.0.1-SNAPSHOT.jar
 Restart=always
 RestartSec=10
