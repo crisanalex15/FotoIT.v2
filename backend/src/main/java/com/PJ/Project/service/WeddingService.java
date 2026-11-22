@@ -50,15 +50,66 @@ public class WeddingService {
 
         Wedding wedding = Wedding.builder()
                 .code(code)
-                .googleFolderId(weddingDto.getGoogleFolderId())
+                .googleFolderId(extractFolderId(weddingDto.getGoogleFolderId()))
                 .eventType(weddingDto.getEventType() != null ? weddingDto.getEventType() : EventType.EVENT)
                 .name(weddingDto.getName() != null && !weddingDto.getName().isEmpty()
                         ? weddingDto.getName()
                         : "Eveniment " + code)
-                .description(weddingDto.getDescription())
+                .description(blankToNull(weddingDto.getDescription()))
                 .build();
 
         return weddingRepository.save(wedding);
+    }
+
+    /** Modifica numele, tipul, descrierea sau folderul unui eveniment existent. */
+    @Transactional
+    public Wedding updateWedding(Long id, WeddingDto dto) {
+        Wedding wedding = getWeddingById(id);
+        if (dto.getName() != null && !dto.getName().isBlank()) {
+            wedding.setName(dto.getName().trim());
+        }
+        if (dto.getEventType() != null) {
+            wedding.setEventType(dto.getEventType());
+        }
+        wedding.setDescription(blankToNull(dto.getDescription()));
+        if (dto.getGoogleFolderId() != null && !dto.getGoogleFolderId().isBlank()) {
+            String folderId = extractFolderId(dto.getGoogleFolderId());
+            if (!folderId.equals(wedding.getGoogleFolderId())) {
+                wedding.setGoogleFolderId(folderId);
+                wedding.setLastSyncedAt(null); // folder nou: pozele trebuie resincronizate
+            }
+        }
+        return weddingRepository.save(wedding);
+    }
+
+    /**
+     * Accepta fie ID-ul folderului, fie link-ul copiat din Google Drive
+     * (ex: https://drive.google.com/drive/folders/1AbC...?usp=sharing).
+     */
+    public static String extractFolderId(String input) {
+        if (input == null || input.isBlank()) {
+            throw new IllegalArgumentException("Introdu link-ul sau ID-ul folderului din Google Drive.");
+        }
+        String value = input.trim();
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?:folders/|[?&]id=)([A-Za-z0-9_-]{10,})")
+                .matcher(value);
+        if (m.find()) {
+            value = m.group(1);
+        }
+        if (!GoogleDriveService.isValidFileId(value)) {
+            throw new IllegalArgumentException("Link-ul sau ID-ul folderului Google Drive nu este valid.");
+        }
+        return value;
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Photo> getPhotosForWedding(Long weddingId) {
+        return photoRepository.findByWeddingOrderByFilenameAsc(getWeddingById(weddingId));
     }
 
     @Transactional
@@ -72,6 +123,9 @@ public class WeddingService {
         photoRepository.deleteByWedding(wedding);
 
         List<File> driveFiles = googleDriveService.listFilesInFolderRecursive(wedding.getGoogleFolderId());
+
+        wedding.setLastSyncedAt(java.time.LocalDateTime.now());
+        weddingRepository.save(wedding);
 
         if (driveFiles.isEmpty()) {
             log.warn("Nu s-au gasit imagini in folderul {}", wedding.getGoogleFolderId());
@@ -201,7 +255,7 @@ public class WeddingService {
 
     @Transactional(readOnly = true)
     public List<WeddingSummaryDto> getAllWeddingsSummary() {
-        List<Wedding> weddings = weddingRepository.findAll();
+        List<Wedding> weddings = weddingRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
         return weddings.stream()
                 .map(wedding -> WeddingSummaryDto.builder()
                         .id(wedding.getId())
@@ -210,6 +264,9 @@ public class WeddingService {
                         .name(wedding.getName())
                         .description(wedding.getDescription())
                         .photoCount(photoRepository.countByWedding(wedding))
+                        .googleFolderId(wedding.getGoogleFolderId())
+                        .createdAt(wedding.getCreatedAt())
+                        .lastSyncedAt(wedding.getLastSyncedAt())
                         .build())
                 .collect(Collectors.toList());
     }

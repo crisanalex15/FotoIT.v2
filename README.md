@@ -50,8 +50,10 @@ Site de prezentare pentru fotografie de evenimente, cu galerii private în care 
 - Distribuirea link-ului galeriei
 
 **Pentru fotograf** — panoul de administrare `/admin`
-- Creare evenimente (nuntă, majorat, eveniment) cu cod unic generat automat
-- Sincronizare fotografii dintr-un folder Google Drive (inclusiv subfoldere)
+- Creare evenimente (nuntă, majorat, eveniment) cu cod unic, direct din link-ul folderului Google Drive
+- Sincronizare fotografii din Drive (inclusiv subfoldere), cu data ultimei sincronizări
+- Previzualizarea pozelor, editarea evenimentului și mesaj gata de trimis clientului (link + cod)
+- Statistici, căutare și confirmare înainte de ștergere
 
 ## Cum funcționează
 
@@ -121,6 +123,7 @@ Copiază `backend/local.env.example` ca `backend/local.env` (ignorat de git). `s
 | `ADMIN_PASSWORD` | *generată la pornire* | Parola pentru `/admin` (utilizator `admin`). Fără ea, la fiecare pornire se generează o parolă nouă, afișată în fereastra backend-ului. |
 | `ADMIN_USERNAME` | `admin` | Utilizatorul pentru `/admin` |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Domeniile frontend-ului, separate prin virgulă |
+| `FRONTEND_URL` | `http://localhost:3000` | Adresa publică a site-ului, folosită în link-urile de galerie copiate din admin |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | În `frontend/frontend/.env.local`: adresa backend-ului |
 
 Alte setări (dimensiuni thumbnail/preview, limita ZIP, limita de încercări pentru coduri) sunt în

@@ -1,38 +1,188 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <title>Detalii Eveniment - FotoIT</title>
-    <link rel="stylesheet" th:href="@{/css/admin.css}">
-</head>
-<body>
-    <div class="container">
-        <a th:href="@{/admin}" class="back-link">← Înapoi la Dashboard</a>
-        
-        <h1 th:text="${wedding.name}"></h1>
-        
-        <div class="details">
-            <p><strong>Cod:</strong> <span th:text="${wedding.code}"></span></p>
-            <p><strong>Tip:</strong> 
-                <span th:if="${wedding.eventType.name() == 'WEDDING'}" class="badge badge-wedding">💒 Nuntă</span>
-                <span th:if="${wedding.eventType.name() == 'SWEET_16'}" class="badge badge-sweet16">🎂 Majorată</span>
-                <span th:if="${wedding.eventType.name() == 'EVENT'}" class="badge badge-event">🎉 Eveniment</span>
-            </p>
-            <p><strong>Google Folder ID:</strong> <span th:text="${wedding.googleFolderId}"></span></p>
-            <p th:if="${wedding.description}"><strong>Descriere:</strong> <span th:text="${wedding.description}"></span></p>
-            <p><strong>Total Poze:</strong> <span th:text="${wedding.photos.size()}"></span></p>
-        </div>
-        
-        <div class="actions">
-            <form th:action="@{/admin/{id}/sync(id=${wedding.id})}" method="post" style="display:inline;">
-                <button type="submit" class="btn btn-sync">🔄 Sincronizează Poze</button>
-            </form>
-            <form th:action="@{/admin/{id}/delete(id=${wedding.id})}" method="post" style="display:inline;" 
-                  onsubmit="return confirm('Ești sigur?');">
-                <button type="submit" class="btn btn-danger">🗑️ Șterge Eveniment</button>
-            </form>
-        </div>
-    </div>
-</body>
-</html>
+<html lang="ro" xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{admin/fragments :: head(${wedding.name})}"></head>
+  <body th:with="galleryUrl=${frontendUrl + '/gallery/' + wedding.code}, previewLimit=60">
+    <svg th:replace="~{admin/fragments :: icons}"></svg>
+    <header th:replace="~{admin/fragments :: topbar}"></header>
 
+    <main class="page">
+      <a th:href="@{/admin}" class="back-link">
+        <svg class="icon"><use href="#i-arrow-left" /></svg>
+        <span>Toate evenimentele</span>
+      </a>
+
+      <div class="page-header">
+        <div>
+          <span class="eyebrow" th:text="${wedding.eventType.displayName}">Eveniment</span>
+          <h1 th:text="${wedding.name}">Nume eveniment</h1>
+          <div class="event-meta">
+            <button type="button" class="code-chip" th:attr="data-copy=${wedding.code}" data-copy-label="Codul a fost copiat" title="Copiază codul">
+              <span th:text="${wedding.code}">CODE</span>
+              <svg class="icon"><use href="#i-copy" /></svg>
+            </button>
+            <span class="meta">
+              <svg class="icon"><use href="#i-image" /></svg>
+              <span th:text="${#lists.size(photos)} + ' poze'">0 poze</span>
+            </span>
+            <span class="badge badge-success" th:if="${wedding.lastSyncedAt != null}"
+              th:text="'Sincronizat ' + ${#temporals.format(wedding.lastSyncedAt, 'dd.MM.yyyy, HH:mm')}"></span>
+            <span class="badge badge-warning" th:if="${wedding.lastSyncedAt == null and #lists.isEmpty(photos)}">Nesincronizat</span>
+          </div>
+        </div>
+        <div class="event-actions">
+          <form th:action="@{/admin/{id}/sync(id=${wedding.id})}" method="post" class="inline-form" data-busy>
+            <input type="hidden" name="returnTo" value="details" />
+            <button type="submit" class="btn btn-primary">
+              <svg class="icon"><use href="#i-sync" /></svg>
+              <span>Sincronizează pozele</span>
+            </button>
+          </form>
+          <a class="btn btn-ghost" th:href="${galleryUrl}" target="_blank" rel="noopener">
+            <svg class="icon"><use href="#i-link" /></svg>
+            <span>Deschide galeria</span>
+          </a>
+        </div>
+      </div>
+
+      <div th:replace="~{admin/fragments :: flash}"></div>
+
+      <div class="grid-main">
+        <!-- Pozele -->
+        <section class="panel" aria-labelledby="photos-title">
+          <div class="panel-header">
+            <h2 id="photos-title">Fotografii</h2>
+            <span class="badge" th:text="${#lists.size(photos)}">0</span>
+          </div>
+
+          <div class="empty" th:if="${#lists.isEmpty(photos)}">
+            <span class="stat-icon"><svg class="icon icon-lg"><use href="#i-image" /></svg></span>
+            <h3>Nicio poză sincronizată</h3>
+            <p>Apasă „Sincronizează pozele” ca să le aduci din folderul Google Drive.</p>
+          </div>
+
+          <div class="panel-body" th:unless="${#lists.isEmpty(photos)}">
+            <div class="photo-grid">
+              <a
+                th:each="photo, it : ${photos}"
+                th:if="${it.index < previewLimit}"
+                th:href="@{/api/gallery/preview/{id}(id=${photo.fileId})}"
+                target="_blank"
+                rel="noopener"
+                th:title="${photo.filename}"
+              >
+                <img th:src="@{/api/gallery/thumbnail/{id}(id=${photo.fileId})}" th:alt="${photo.filename}" loading="lazy" decoding="async" />
+                <span th:text="${photo.filename}">poza.jpg</span>
+              </a>
+            </div>
+            <div class="more-photos" th:if="${#lists.size(photos) > previewLimit}">
+              <a class="btn btn-ghost btn-sm" th:href="${galleryUrl}" target="_blank" rel="noopener">
+                <span th:text="'Vezi toate cele ' + ${#lists.size(photos)} + ' poze în galerie'"></span>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar stack">
+          <!-- Mesaj pentru client -->
+          <section class="panel" aria-labelledby="share-title">
+            <div class="panel-header">
+              <h2 id="share-title">Trimite clientului</h2>
+            </div>
+            <div class="panel-body">
+              <div class="share-box" id="share-message"
+                th:text="|Bună! 📸 Fotografiile de la ${wedding.name} sunt gata.
+
+Le poți vedea și descărca aici:
+${galleryUrl}
+
+Sau intră pe ${frontendUrl}, apasă „Cod Client” și introdu codul: ${wedding.code}|"></div>
+              <div class="stack">
+                <button type="button" class="btn btn-primary" data-copy="" data-copy-from="share-message" data-copy-label="Mesajul a fost copiat">
+                  <svg class="icon"><use href="#i-message" /></svg>
+                  <span>Copiază mesajul</span>
+                </button>
+                <button type="button" class="btn btn-ghost" th:attr="data-copy=${galleryUrl}" data-copy-label="Link-ul a fost copiat">
+                  <svg class="icon"><use href="#i-copy" /></svg>
+                  <span>Copiază doar link-ul</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Editare -->
+          <section class="panel" aria-labelledby="edit-title">
+            <div class="panel-header">
+              <h2 id="edit-title">Detalii</h2>
+            </div>
+            <form th:action="@{/admin/{id}/edit(id=${wedding.id})}" method="post" class="panel-body">
+              <div class="field">
+                <label for="name">Nume</label>
+                <input class="input" id="name" name="name" maxlength="255" th:value="${wedding.name}" required />
+              </div>
+
+              <fieldset class="field fieldset">
+                <legend>Tip eveniment</legend>
+                <div class="segmented">
+                  <input type="radio" name="eventType" id="type-wedding" value="WEDDING" th:checked="${wedding.eventType.name() == 'WEDDING'}" />
+                  <label for="type-wedding"><span class="emoji">💒</span>Nuntă</label>
+                  <input type="radio" name="eventType" id="type-sweet16" value="SWEET_16" th:checked="${wedding.eventType.name() == 'SWEET_16'}" />
+                  <label for="type-sweet16"><span class="emoji">🎂</span>Majorat</label>
+                  <input type="radio" name="eventType" id="type-event" value="EVENT" th:checked="${wedding.eventType.name() == 'EVENT'}" />
+                  <label for="type-event"><span class="emoji">🎉</span>Eveniment</label>
+                </div>
+              </fieldset>
+
+              <div class="field">
+                <label for="description">Mesaj pentru client <span class="optional">(opțional)</span></label>
+                <textarea class="input" id="description" name="description" rows="3" th:text="${wedding.description}" placeholder="Apare deasupra pozelor, în galerie."></textarea>
+              </div>
+
+              <div class="field">
+                <label for="googleFolderId">Folder Google Drive</label>
+                <input class="input mono" id="googleFolderId" name="googleFolderId" th:value="${wedding.googleFolderId}" required autocomplete="off" />
+                <span class="hint">
+                  <a th:href="'https://drive.google.com/drive/folders/' + ${wedding.googleFolderId}" target="_blank" rel="noopener" style="color: var(--gold)">Deschide folderul în Drive</a>
+                  · dacă îl schimbi, sincronizează din nou.
+                </span>
+              </div>
+
+              <button type="submit" class="btn btn-ghost btn-block">
+                <svg class="icon"><use href="#i-save" /></svg>
+                <span>Salvează modificările</span>
+              </button>
+            </form>
+          </section>
+
+          <!-- Informatii + stergere -->
+          <section class="panel">
+            <div class="panel-body">
+              <dl class="detail-list">
+                <div>
+                  <dt>Creat la</dt>
+                  <dd th:text="${#temporals.format(wedding.createdAt, 'dd.MM.yyyy, HH:mm')}">—</dd>
+                </div>
+                <div>
+                  <dt>Ultima sincronizare</dt>
+                  <dd th:text="${wedding.lastSyncedAt != null} ? ${#temporals.format(wedding.lastSyncedAt, 'dd.MM.yyyy, HH:mm')} : (${#lists.isEmpty(photos)} ? 'Niciodată' : 'Necunoscută')">—</dd>
+                </div>
+              </dl>
+              <form
+                th:action="@{/admin/{id}/delete(id=${wedding.id})}"
+                method="post"
+                th:attr="data-confirm-delete=${wedding.name}"
+                style="margin-top: 20px"
+              >
+                <button type="submit" class="btn btn-danger btn-block">
+                  <svg class="icon"><use href="#i-trash" /></svg>
+                  <span>Șterge evenimentul</span>
+                </button>
+              </form>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <div th:replace="~{admin/fragments :: overlays}"></div>
+  </body>
+</html>

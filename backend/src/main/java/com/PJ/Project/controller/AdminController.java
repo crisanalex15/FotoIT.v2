@@ -1,17 +1,20 @@
 package com.PJ.Project.controller;
 
 import com.PJ.Project.dto.WeddingDto;
+import com.PJ.Project.dto.WeddingSummaryDto;
+import com.PJ.Project.entity.EventType;
 import com.PJ.Project.entity.Wedding;
+import com.PJ.Project.service.GoogleDriveService;
 import com.PJ.Project.service.WeddingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
+import java.util.List;
 
 @Controller
 @RequestMapping("/admin")
@@ -20,48 +23,81 @@ import java.io.IOException;
 public class AdminController {
 
     private final WeddingService weddingService;
+    private final GoogleDriveService googleDriveService;
+
+    /** Adresa publica a site-ului (Next.js), folosita pentru link-urile trimise clientilor */
+    @Value("${app.frontend-url:http://localhost:3000}")
+    private String frontendUrl;
+
+    @ModelAttribute
+    void commonAttributes(Model model) {
+        model.addAttribute("frontendUrl", frontendUrl.replaceAll("/+$", ""));
+        model.addAttribute("eventTypes", EventType.values());
+        model.addAttribute("driveAvailable", googleDriveService.isAvailable());
+    }
 
     @GetMapping
     public String dashboard(Model model) {
-        model.addAttribute("weddings", weddingService.getAllWeddingsSummary());
+        List<WeddingSummaryDto> weddings = weddingService.getAllWeddingsSummary();
+        model.addAttribute("weddings", weddings);
+        model.addAttribute("totalPhotos", weddings.stream().mapToLong(WeddingSummaryDto::getPhotoCount).sum());
+        model.addAttribute("neverSynced", weddings.stream().filter(w -> w.getLastSyncedAt() == null && w.getPhotoCount() == 0).count());
         return "admin/dashboard";
     }
 
     @PostMapping("/create")
-    public String createWedding(@ModelAttribute WeddingDto weddingDto, RedirectAttributes redirectAttributes) {
+    public String createWedding(@ModelAttribute WeddingDto weddingDto, RedirectAttributes redirect) {
         try {
             Wedding wedding = weddingService.createWedding(weddingDto);
-            redirectAttributes.addFlashAttribute("success", 
-                "Eveniment creat cu succes! Cod: " + wedding.getCode());
+            redirect.addFlashAttribute("success",
+                    "Evenimentul „" + wedding.getName() + "” a fost creat. Cod: " + wedding.getCode()
+                            + ". Apasă „Sincronizează” ca să aduci pozele din Drive.");
+            return "redirect:/admin/" + wedding.getId();
+        } catch (IllegalArgumentException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
         } catch (Exception e) {
             log.error("Eroare la crearea evenimentului", e);
-            redirectAttributes.addFlashAttribute("error", "Eroare: " + e.getMessage());
+            redirect.addFlashAttribute("error", "Evenimentul nu a putut fi creat. Verifică datele și încearcă din nou.");
         }
         return "redirect:/admin";
     }
 
     @PostMapping("/{id}/sync")
-    public String syncPhotos(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String syncPhotos(@PathVariable Long id,
+                             @RequestParam(required = false, defaultValue = "") String returnTo,
+                             RedirectAttributes redirect) {
         try {
             int count = weddingService.syncPhotosFromGoogleDrive(id);
-            redirectAttributes.addFlashAttribute("success", 
-                "Sincronizate " + count + " poze cu succes!");
-        } catch (IOException | RuntimeException e) {
-            log.error("Eroare la sincronizare poze", e);
-            redirectAttributes.addFlashAttribute("error", 
-                "Eroare la sincronizare: " + e.getMessage());
+            redirect.addFlashAttribute("success", count == 0
+                    ? "Sincronizare gata, dar folderul nu conține poze. Verifică dacă e partajat cu contul de serviciu."
+                    : "Sincronizare reușită: " + count + " poze. Previzualizările se pregătesc în fundal.");
+        } catch (Exception e) {
+            log.error("Eroare la sincronizare poze pentru evenimentul {}", id, e);
+            redirect.addFlashAttribute("error", syncErrorMessage(e));
         }
-        return "redirect:/admin";
+        return "details".equals(returnTo) ? "redirect:/admin/" + id : "redirect:/admin";
+    }
+
+    @PostMapping("/{id}/edit")
+    public String editWedding(@PathVariable Long id, @ModelAttribute WeddingDto dto, RedirectAttributes redirect) {
+        try {
+            weddingService.updateWedding(id, dto);
+            redirect.addFlashAttribute("success", "Modificările au fost salvate.");
+        } catch (IllegalArgumentException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/admin/" + id;
     }
 
     @PostMapping("/{id}/delete")
-    public String deleteWedding(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    public String deleteWedding(@PathVariable Long id, RedirectAttributes redirect) {
         try {
+            Wedding wedding = weddingService.getWeddingById(id);
             weddingService.deleteWedding(id);
-            redirectAttributes.addFlashAttribute("success", "Eveniment sters cu succes!");
+            redirect.addFlashAttribute("success", "Evenimentul „" + wedding.getName() + "” a fost șters.");
         } catch (Exception e) {
             log.error("Eroare la stergere eveniment", e);
-            redirectAttributes.addFlashAttribute("error", "Eroare: " + e.getMessage());
+            redirect.addFlashAttribute("error", "Evenimentul nu a putut fi șters.");
         }
         return "redirect:/admin";
     }
@@ -70,6 +106,21 @@ public class AdminController {
     public String weddingDetails(@PathVariable Long id, Model model) {
         Wedding wedding = weddingService.getWeddingById(id);
         model.addAttribute("wedding", wedding);
+        model.addAttribute("photos", weddingService.getPhotosForWedding(id));
         return "admin/wedding-details";
+    }
+
+    private static String syncErrorMessage(Exception e) {
+        String msg = String.valueOf(e.getMessage());
+        if (e instanceof IllegalStateException) {
+            return "Google Drive nu este configurat: lipsește fișierul de credențiale.";
+        }
+        if (msg.contains("404") || msg.contains("notFound") || msg.contains("File not found")) {
+            return "Folderul nu a fost găsit în Google Drive. Verifică link-ul și dacă folderul e partajat cu contul de serviciu.";
+        }
+        if (msg.contains("403")) {
+            return "Contul de serviciu nu are acces la folder. Partajează folderul cu adresa contului de serviciu.";
+        }
+        return "Sincronizarea a eșuat. Încearcă din nou peste câteva momente.";
     }
 }

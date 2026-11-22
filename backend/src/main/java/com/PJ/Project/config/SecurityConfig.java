@@ -84,7 +84,7 @@ public class SecurityConfig {
                         .requestMatchers("/admin/**", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-                .formLogin(form -> form.defaultSuccessUrl("/admin", true).permitAll())
+                .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/admin", true).permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout").permitAll())
                 .httpBasic(Customizer.withDefaults())
                 .headers(headers -> headers

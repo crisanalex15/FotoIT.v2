@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ro" xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{admin/fragments :: head('Autentificare')}"></head>
+  <body>
+    <svg th:replace="~{admin/fragments :: icons}"></svg>
+
+    <main class="login-wrap">
+      <div class="panel login-card">
+        <img th:src="@{/images/logo-fotoit.png}" alt="FotoIT" />
+        <h1>Panou de administrare</h1>
+        <p>Autentifică-te ca să gestionezi galeriile clienților.</p>
+
+        <div class="alert alert-error" th:if="${param.error}" role="alert">
+          <svg class="icon"><use href="#i-alert" /></svg>
+          <span>Utilizator sau parolă greșită.</span>
+        </div>
+        <div class="alert alert-success" th:if="${param.logout}" role="status">
+          <svg class="icon"><use href="#i-check" /></svg>
+          <span>Te-ai deconectat cu succes.</span>
+        </div>
+
+        <form th:action="@{/login}" method="post">
+          <div class="field">
+            <label for="username">Utilizator</label>
+            <input class="input" id="username" name="username" autocomplete="username" value="admin" required />
+          </div>
+          <div class="field">
+            <label for="password">Parolă</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <svg class="icon"><use href="#i-key" /></svg>
+            <span>Intră în cont</span>
+          </button>
+        </form>
+
+        <p class="login-footer">
+          Ai uitat parola? Este setată prin <span class="mono">ADMIN_PASSWORD</span> în
+          <span class="mono">backend/local.env</span>.
+        </p>
+      </div>
+    </main>
+  </body>
+</html>

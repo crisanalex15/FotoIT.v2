@@ -3,6 +3,7 @@ package com.PJ.Project.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,6 +31,10 @@ public class Wedding extends BaseEntity {
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    /** Momentul ultimei sincronizari reusite cu Google Drive */
+    @Column(name = "last_synced_at")
+    private LocalDateTime lastSyncedAt;
 
     @OneToMany(mappedBy = "wedding", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

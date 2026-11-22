@@ -4,7 +4,7 @@ import lombok.Getter;
 
 @Getter
 public enum EventType {
-    WEDDING("Nunta"),
+    WEDDING("Nuntă"),
     SWEET_16("Majorat"),
     EVENT("Eveniment");
 
