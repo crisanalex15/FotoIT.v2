@@ -29,6 +29,11 @@ REM --- Verificari -----------------------------------------------------
 where java >nul 2>&1 || (echo  [EROARE] Java nu este instalat. & goto :fail)
 where npm  >nul 2>&1 || (echo  [EROARE] Node.js / npm nu este instalat. & goto :fail)
 
+REM cloudflared poate fi instalat dar inca absent din PATH-ul terminalului curent
+for %%D in ("%ProgramFiles(x86)%\cloudflared" "%ProgramFiles%\cloudflared" "%LOCALAPPDATA%\Microsoft\WinGet\Links") do (
+    if exist "%%~D\cloudflared.exe" set "PATH=%%~D;%PATH%"
+)
+
 where cloudflared >nul 2>&1
 if errorlevel 1 (
     echo  cloudflared ^(programul Cloudflare pentru tunel^) nu este instalat.
