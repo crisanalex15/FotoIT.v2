@@ -64,7 +64,7 @@ if not exist "%FRONTEND%\.env.local" (
 REM --- Pornire --------------------------------------------------------
 if not defined SKIP_BACKEND (
     echo  Pornire backend  ^(fereastra "FotoIT Backend"^)...
-    start "FotoIT Backend" /d "%BACKEND%" cmd /k "mvnw.cmd spring-boot:run"
+    start "FotoIT Backend" /d "%BACKEND%" cmd /k "call .\mvnw.cmd spring-boot:run"
 )
 
 if not defined SKIP_FRONTEND (
