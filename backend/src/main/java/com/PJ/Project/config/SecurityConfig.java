@@ -37,7 +37,10 @@ public class SecurityConfig {
     @Value("${admin.password:}")
     private String adminPassword;
 
-    /** Lista de origini permise, separate prin virgula (ex: https://fotoit.ro,https://www.fotoit.ro) */
+    /**
+     * Origini permise, separate prin virgula. Accepta si pattern-uri,
+     * ex: https://fotoit.ro,https://*.trycloudflare.com
+     */
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
     private String allowedOrigins;
 
@@ -104,7 +107,7 @@ public class SecurityConfig {
                 .toList();
 
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(origins);
+        config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
         config.setAllowedHeaders(List.of("Content-Type", "Accept"));
         config.setExposedHeaders(List.of("Content-Disposition", "Content-Length"));

@@ -14,6 +14,8 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 @Controller
@@ -31,7 +33,7 @@ public class AdminController {
 
     @ModelAttribute
     void commonAttributes(Model model) {
-        model.addAttribute("frontendUrl", frontendUrl.replaceAll("/+$", ""));
+        model.addAttribute("frontendUrl", currentFrontendUrl());
         model.addAttribute("eventTypes", EventType.values());
         model.addAttribute("driveAvailable", googleDriveService.isAvailable());
     }
@@ -108,6 +110,25 @@ public class AdminController {
         model.addAttribute("wedding", wedding);
         model.addAttribute("photos", weddingService.getPhotosForWedding(id));
         return "admin/wedding-details";
+    }
+
+    /**
+     * Adresa site-ului pentru link-urile trimise clientilor. Daca ruleaza un tunel public
+     * (start-public.bat scrie adresa in public-url.txt), se foloseste aceea; altfel app.frontend-url.
+     */
+    private String currentFrontendUrl() {
+        try {
+            Path file = Path.of("public-url.txt");
+            if (Files.isRegularFile(file)) {
+                String url = Files.readString(file).trim();
+                if (url.matches("^https://[A-Za-z0-9.-]+$")) {
+                    return url;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("public-url.txt nu a putut fi citit: {}", e.getMessage());
+        }
+        return frontendUrl.replaceAll("/+$", "");
     }
 
     private static String syncErrorMessage(Exception e) {

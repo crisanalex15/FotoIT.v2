@@ -30,3 +30,8 @@ backend/local.env
 
 # Backup-uri baza de date
 backups/
+
+# Adresa tunelului public curent (scrisa de start-public.bat)
+backend/public-url.txt
+backend/cloudflared.log
+frontend/frontend/build.log

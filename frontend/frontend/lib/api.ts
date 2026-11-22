@@ -1,5 +1,9 @@
-/** Adresa backend-ului Spring Boot. Se seteaza in .env.local prin NEXT_PUBLIC_API_URL. */
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/+$/, "");
+/**
+ * Adresa API-ului vazuta din browser. Implicit e goala: cererile merg la acelasi domeniu
+ * (/api/gallery/...), iar Next.js le trimite mai departe la backend (vezi next.config.ts).
+ * Se poate seta NEXT_PUBLIC_API_URL doar daca backend-ul e public pe alt domeniu.
+ */
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 
 export type EventType = "WEDDING" | "SWEET_16" | "EVENT" | string;
 

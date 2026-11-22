@@ -40,7 +40,7 @@ public class GalleryLookupRateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         long now = System.currentTimeMillis();
-        String ip = request.getRemoteAddr();
+        String ip = clientIp(request);
 
         Window w = windows.compute(ip, (k, existing) ->
                 existing == null || now - existing.start > WINDOW_MS ? new Window(now) : existing);
@@ -57,6 +57,28 @@ public class GalleryLookupRateLimitFilter extends OncePerRequestFilter {
             windows.entrySet().removeIf(e -> now - e.getValue().start > WINDOW_MS);
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * IP-ul vizitatorului. Cand cererea vine de pe aceeasi masina (proxy-ul Next.js / Cloudflare Tunnel),
+     * IP-ul real e in header-ele puse de proxy; altfel ar imparti toti vizitatorii aceeasi limita.
+     * Header-ele sunt luate in seama doar de la localhost, ca un client extern sa nu le poata falsifica.
+     */
+    static String clientIp(HttpServletRequest request) {
+        String remote = request.getRemoteAddr();
+        boolean fromLocalProxy = "127.0.0.1".equals(remote) || "0:0:0:0:0:0:0:1".equals(remote) || "::1".equals(remote);
+        if (!fromLocalProxy) {
+            return remote;
+        }
+        String cf = request.getHeader("CF-Connecting-IP"); // setat de Cloudflare, nu poate fi falsificat de client
+        if (cf != null && !cf.isBlank()) {
+            return cf.trim();
+        }
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return remote;
     }
 
     private static final class Window {

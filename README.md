@@ -60,7 +60,7 @@ Site de prezentare pentru fotografie de evenimente, cu galerii private în care 
 ```mermaid
 flowchart LR
     C["👤 Client<br/>browser"] -->|"cod galerie"| F["Next.js<br/>:3000"]
-    F -->|"REST API"| B["Spring Boot<br/>:8080"]
+    F -->|"proxy /api/gallery"| B["Spring Boot<br/>:8080"]
     A["📷 Fotograf"] -->|"/admin"| B
     B --- DB[("SQLite<br/>evenimente + poze")]
     B --- CA[("Cache pe disc<br/>thumbnail / preview")]
@@ -90,6 +90,21 @@ La prima rulare instalează automat dependințele npm și creează `frontend/fro
 | 📚 Documentație API | http://localhost:8080/swagger-ui.html *(necesită login admin)* |
 
 Oprire: `stop-dev.bat`.
+
+### Site public de pe PC (Cloudflare Tunnel, gratuit)
+
+```bat
+start-public.bat
+```
+
+Pornește aplicația în modul de producție și o face accesibilă de oriunde printr-un link
+`https://<ceva>.trycloudflare.com`, afișat în terminal și copiat automat în clipboard.
+La prima rulare oferă instalarea `cloudflared` (pachetul oficial Cloudflare, prin winget).
+
+- Doar site-ul e public; panoul de admin rămâne accesibil numai de pe PC (http://localhost:8080/admin).
+- Link-urile copiate din admin („Trimite clientului”) folosesc automat adresa publică.
+- Link-ul se schimbă la fiecare pornire, iar site-ul e online doar cât timp PC-ul e pornit.
+  Pentru un link fix e nevoie de un domeniu propriu adăugat în Cloudflare.
 
 <details>
 <summary><b>Pornire manuală (orice sistem de operare)</b></summary>
@@ -122,9 +137,10 @@ Copiază `backend/local.env.example` ca `backend/local.env` (ignorat de git). `s
 |---|---|---|
 | `ADMIN_PASSWORD` | *generată la pornire* | Parola pentru `/admin` (utilizator `admin`). Fără ea, la fiecare pornire se generează o parolă nouă, afișată în fereastra backend-ului. |
 | `ADMIN_USERNAME` | `admin` | Utilizatorul pentru `/admin` |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Domeniile frontend-ului, separate prin virgulă |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,https://*.trycloudflare.com` | Domeniile frontend-ului, separate prin virgulă (acceptă `*`) |
 | `FRONTEND_URL` | `http://localhost:3000` | Adresa publică a site-ului, folosită în link-urile de galerie copiate din admin |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | În `frontend/frontend/.env.local`: adresa backend-ului |
+| `BACKEND_URL` | `http://localhost:8080` | În `frontend/frontend/.env.local`: unde trimite Next.js cererile `/api/gallery/*` |
+| `NEXT_PUBLIC_API_URL` | *gol* | Doar dacă backend-ul e public pe alt domeniu; gol = același domeniu, prin proxy-ul Next.js |
 
 Alte setări (dimensiuni thumbnail/preview, limita ZIP, limita de încercări pentru coduri) sunt în
 `backend/src/main/resources/application.properties`.
@@ -166,7 +182,8 @@ fotoit.v2/
 │   ├── app/                     pagina principală, /gallery/[code]
 │   ├── components/              layout, galerie, lightbox, secțiuni
 │   └── lib/                     client API, descărcări, date site
-├── start-dev.bat / stop-dev.bat
+├── start-dev.bat / stop-dev.bat  pornire / oprire locală
+├── start-public.bat             site public prin Cloudflare Tunnel
 └── deploy-aws.sh                deploy opțional pe un server Ubuntu (EC2)
 ```
 
