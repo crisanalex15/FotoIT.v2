@@ -11,7 +11,6 @@ import com.PJ.Project.exception.ResourceNotFoundException;
 import com.PJ.Project.repository.PhotoRepository;
 import com.PJ.Project.repository.WeddingRepository;
 import com.google.api.services.drive.model.File;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -29,7 +28,7 @@ public class WeddingService {
     private final WeddingRepository weddingRepository;
     private final PhotoRepository photoRepository;
     private final Random random = new Random();
-    
+
     @Autowired(required = false)
     private GoogleDriveService googleDriveService;
 
@@ -41,49 +40,45 @@ public class WeddingService {
     @Transactional
     public Wedding createWedding(WeddingDto weddingDto) {
         String code = generateUniqueCode();
-        
+
         Wedding wedding = Wedding.builder()
                 .code(code)
                 .googleFolderId(weddingDto.getGoogleFolderId())
                 .eventType(weddingDto.getEventType() != null ? weddingDto.getEventType() : EventType.EVENT)
-                .name(weddingDto.getName() != null && !weddingDto.getName().isEmpty() 
-                    ? weddingDto.getName() 
-                    : "Eveniment " + code)
+                .name(weddingDto.getName() != null && !weddingDto.getName().isEmpty()
+                        ? weddingDto.getName()
+                        : "Eveniment " + code)
                 .description(weddingDto.getDescription())
                 .build();
-        
+
         return weddingRepository.save(wedding);
     }
 
     @Transactional
     public int syncPhotosFromGoogleDrive(Long weddingId) throws IOException {
-        if (googleDriveService == null) {
-            throw new IllegalStateException("Google Drive Service nu este configurat. Adauga fisierul de credentiale in application.properties");
+        if (googleDriveService == null || !googleDriveService.isAvailable()) {
+            throw new IllegalStateException("Google Drive Service nu este configurat. Adauga GOOGLE_CREDENTIALS_JSON sau fisierul de credentiale in application.properties");
         }
-        
+
         Wedding wedding = getWeddingById(weddingId);
-        
+
         photoRepository.deleteByWedding(wedding);
-        
+
         List<File> driveFiles = googleDriveService.listFilesInFolderRecursive(wedding.getGoogleFolderId());
-        
+
         if (driveFiles.isEmpty()) {
             log.warn("Nu s-au gasit imagini in folderul {}", wedding.getGoogleFolderId());
             return 0;
         }
-        
+
         List<Photo> photos = driveFiles.stream()
                 .map(driveFile -> {
-                    // Pentru imagini complete, folosim endpoint proxy in backend
-                    // Acest endpoint va servi imaginile cu autentificare
                     String viewUrl = String.format("/api/gallery/image/%s", driveFile.getId());
-                    // Pentru thumbnail-uri, folosim un endpoint proxy in backend
-                    // Acest endpoint va servi thumbnail-urile cu autentificare
                     String thumbnailUrl = String.format("/api/gallery/thumbnail/%s", driveFile.getId());
-                    
-                    log.debug("Foto: {} - URL: {} - Thumbnail: {}", 
+
+                    log.debug("Foto: {} - URL: {} - Thumbnail: {}",
                             driveFile.getName(), viewUrl, thumbnailUrl);
-                    
+
                     return Photo.builder()
                             .filename(driveFile.getName())
                             .url(viewUrl)
@@ -93,7 +88,7 @@ public class WeddingService {
                             .build();
                 })
                 .collect(Collectors.toList());
-        
+
         photoRepository.saveAll(photos);
         log.info("Sincronizate {} poze pentru eveniment {}", photos.size(), weddingId);
         return photos.size();
@@ -101,9 +96,9 @@ public class WeddingService {
 
     public GalleryResponseDto getGalleryByCode(String code) {
         Wedding wedding = getWeddingByCode(code);
-        
+
         List<Photo> photos = photoRepository.findByWedding(wedding);
-        
+
         List<PhotoDto> photoDtos = photos.stream()
                 .map(photo -> PhotoDto.builder()
                         .id(photo.getId())
@@ -115,7 +110,7 @@ public class WeddingService {
                         .createdAt(photo.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
-        
+
         return GalleryResponseDto.builder()
                 .code(wedding.getCode())
                 .eventType(wedding.getEventType())
@@ -128,10 +123,10 @@ public class WeddingService {
 
     public GalleryResponseDto getGalleryByCodePaginated(String code, int page, int size) {
         Wedding wedding = getWeddingByCode(code);
-        
+
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
         org.springframework.data.domain.Page<Photo> photoPage = photoRepository.findByWedding(wedding, pageable);
-        
+
         List<PhotoDto> photoDtos = photoPage.getContent().stream()
                 .map(photo -> PhotoDto.builder()
                         .id(photo.getId())
@@ -143,7 +138,7 @@ public class WeddingService {
                         .createdAt(photo.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());
-        
+
         return GalleryResponseDto.builder()
                 .code(wedding.getCode())
                 .eventType(wedding.getEventType())
@@ -178,7 +173,7 @@ public class WeddingService {
                         .build())
                 .collect(Collectors.toList());
     }
-    
+
     @Transactional(readOnly = true)
     public List<Wedding> getAllWeddings() {
         return weddingRepository.findAll();
@@ -207,4 +202,3 @@ public class WeddingService {
         return code.toString();
     }
 }
-

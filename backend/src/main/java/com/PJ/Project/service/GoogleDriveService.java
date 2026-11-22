@@ -3,25 +3,45 @@ package com.PJ.Project.service;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @Slf4j
-@ConditionalOnBean(Drive.class)
-@RequiredArgsConstructor
 public class GoogleDriveService {
 
     private final Drive driveService;
+    private final Path cacheDir = Paths.get("cache", "thumbnails");
 
-    // pentru a obtine toate imaginile din folderul Google Drive
+    public GoogleDriveService(@Autowired(required = false) Drive driveService) {
+        this.driveService = driveService;
+        try {
+            Files.createDirectories(cacheDir);
+        } catch (IOException e) {
+            log.warn("Nu s-a putut crea directorul de cache: {}", cacheDir.toAbsolutePath(), e);
+        }
+    }
+
+    public boolean isAvailable() {
+        return driveService != null;
+    }
+
+    /**
+     * Listeaza recursiv toate imaginile dintr-un folder Google Drive
+     */
     public List<File> listFilesInFolderRecursive(String folderId) throws IOException {
+        checkAvailability();
         log.info("Listare recursiva fisiere din folder: {}", folderId);
         List<File> allImages = new ArrayList<>();
         listFilesRecursive(folderId, allImages);
@@ -29,14 +49,13 @@ public class GoogleDriveService {
         return allImages;
     }
 
-    // pentru a obtine toate imaginile din folderul Google Drive recursiv
     private void listFilesRecursive(String folderId, List<File> allImages) throws IOException {
         String pageToken = null;
         List<String> imageMimeTypes = List.of(
-            "image/jpeg", "image/png", "image/gif", "image/webp", 
-            "image/bmp", "image/tiff", "image/svg+xml"
+                "image/jpeg", "image/png", "image/gif", "image/webp",
+                "image/bmp", "image/tiff", "image/svg+xml"
         );
-        
+
         do {
             String query = String.format("'%s' in parents and trashed=false", folderId);
             FileList result = driveService.files().list()
@@ -44,7 +63,7 @@ public class GoogleDriveService {
                     .setFields("nextPageToken, files(id, name, mimeType, webViewLink, webContentLink, thumbnailLink)")
                     .setPageToken(pageToken)
                     .execute();
-            
+
             List<File> items = result.getFiles();
             if (items != null) {
                 for (File item : items) {
@@ -62,69 +81,104 @@ public class GoogleDriveService {
         } while (pageToken != null);
     }
 
-    // pentru a obtine URL-ul de vizualizare a imaginii
-    public String getFileViewUrl(String fileId, String webContentLink) {
-        if (webContentLink != null && !webContentLink.isEmpty()) {
-            return webContentLink;
-        }
-        return String.format("https://drive.google.com/uc?export=view&id=%s", fileId);
-    }
-
-    public String getThumbnailUrl(String fileId) {
-        // Pentru fisiere private, folosim URL-ul cu export=view si parametru sz pentru dimensiune
-        // Acest URL functioneaza mai bine pentru fisiere private decat thumbnail standard
-        return String.format("https://drive.google.com/uc?export=view&id=%s&sz=w400", fileId);
+    /**
+     * Obtine stream-ul direct al unui fisier din Google Drive (fara a incarca tot fisierul in RAM)
+     */
+    public InputStream getFileStream(String fileId) throws IOException {
+        checkAvailability();
+        return driveService.files().get(fileId)
+                .executeMediaAsInputStream();
     }
 
     /**
-     * Obtine URL-ul thumbnail-ului pentru un fisier
-     * @param fileId ID-ul fisierului
-     * @return URL-ul thumbnail-ului sau null daca nu exista
+     * Obtine thumbnail optimizat (cu cache pe disc).
+     * Daca thumbnail-ul nu exista in cache, il genereaza redimensionat (max 600px latime)
+     * reducand un fisier de 20MB la ~40-60KB.
      */
-    public String getThumbnailLink(String fileId) throws IOException {
-        try {
-            com.google.api.services.drive.model.File file = driveService.files().get(fileId)
-                    .setFields("thumbnailLink")
-                    .execute();
-            return file.getThumbnailLink();
-        } catch (Exception e) {
-            log.warn("Nu s-a putut obtine thumbnail link pentru fisierul {}", fileId, e);
-            return null;
+    public InputStream getOptimizedThumbnailStream(String fileId) throws IOException {
+        checkAvailability();
+        Path cachedFile = cacheDir.resolve(fileId + ".jpg");
+
+        if (Files.exists(cachedFile)) {
+            return Files.newInputStream(cachedFile);
         }
-    }
-    
-    /**
-     * Descarca continutul unui fisier din Google Drive (pentru proxy)
-     * @param fileId ID-ul fisierului
-     * @return Byte array cu continutul fisierului
-     * @throws IOException daca apare o eroare la descarcare
-     */
-    public byte[] downloadFile(String fileId) throws IOException {
-        try {
-            return driveService.files().get(fileId)
-                    .executeMediaAsInputStream()
-                    .readAllBytes();
+
+        // Genereaza thumbnail si il salveaza in cache
+        try (InputStream originalStream = getFileStream(fileId)) {
+            BufferedImage originalImage = ImageIO.read(originalStream);
+            if (originalImage != null) {
+                int originalWidth = originalImage.getWidth();
+                int originalHeight = originalImage.getHeight();
+                int targetWidth = Math.min(originalWidth, 600);
+                int targetHeight = (int) Math.round((double) originalHeight * targetWidth / originalWidth);
+
+                BufferedImage thumbnail = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
+                Graphics2D g2d = thumbnail.createGraphics();
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.drawImage(originalImage, 0, 0, targetWidth, targetHeight, Color.WHITE, null);
+                g2d.dispose();
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ImageIO.write(thumbnail, "jpg", baos);
+                byte[] thumbnailBytes = baos.toByteArray();
+
+                try {
+                    Files.write(cachedFile, thumbnailBytes);
+                } catch (Exception ex) {
+                    log.warn("Nu s-a putut scrie in cache pentru fileId {}: {}", fileId, ex.getMessage());
+                }
+
+                return new ByteArrayInputStream(thumbnailBytes);
+            }
         } catch (Exception e) {
-            log.error("Eroare la descarcarea fisierului {}", fileId, e);
-            throw new IOException("Nu s-a putut descarca fisierul: " + fileId, e);
+            log.warn("Generarea de thumbnail redimensionat a esuat pentru {}, se foloseste stream-ul original: {}", fileId, e.getMessage());
         }
+
+        // Fallback daca ImageIO nu recunoaste formatul
+        return getFileStream(fileId);
     }
 
     /**
      * Obtine numele unui fisier din Google Drive
-     * @param fileId ID-ul fisierului
-     * @return Numele fisierului sau null daca apare o eroare
      */
     public String getFileName(String fileId) {
+        if (!isAvailable()) return null;
         try {
-            com.google.api.services.drive.model.File file = driveService.files().get(fileId)
+            File file = driveService.files().get(fileId)
                     .setFields("name")
                     .execute();
             return file.getName();
         } catch (Exception e) {
-            log.warn("Nu s-a putut obtine numele fisierului {}", fileId, e);
+            log.warn("Nu s-a putut obtine numele fisierului {}: {}", fileId, e.getMessage());
             return null;
         }
     }
-}
 
+    /**
+     * Obtine URL-ul thumbnail-ului CDN Google daca e disponibil
+     */
+    public String getThumbnailLink(String fileId) {
+        if (!isAvailable()) return null;
+        try {
+            File file = driveService.files().get(fileId)
+                    .setFields("thumbnailLink")
+                    .execute();
+            String link = file.getThumbnailLink();
+            if (link != null && link.contains("=s220")) {
+                return link.replace("=s220", "=s600");
+            }
+            return link;
+        } catch (Exception e) {
+            log.warn("Nu s-a putut obtine thumbnailLink pentru {}: {}", fileId, e.getMessage());
+            return null;
+        }
+    }
+
+    private void checkAvailability() throws IOException {
+        if (!isAvailable()) {
+            throw new IOException("Google Drive Service nu este configurat. Adauga GOOGLE_CREDENTIALS_JSON sau fisierul de credentiale.");
+        }
+    }
+}

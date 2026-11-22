@@ -6,6 +6,10 @@
 # Database files
 **/*.db
 **/*.sqlite
+**/*.db-wal
+**/*.db-shm
+cache/
+**/cache/
 
 # Google Drive credentials
 **/fotoit-gallery-*.json
