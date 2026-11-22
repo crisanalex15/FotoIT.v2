@@ -13,12 +13,19 @@ import com.PJ.Project.repository.WeddingRepository;
 import com.google.api.services.drive.model.File;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Random;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,7 +34,7 @@ public class WeddingService {
 
     private final WeddingRepository weddingRepository;
     private final PhotoRepository photoRepository;
-    private final Random random = new Random();
+    private final SecureRandom random = new SecureRandom();
 
     @Autowired(required = false)
     private GoogleDriveService googleDriveService;
@@ -91,24 +98,17 @@ public class WeddingService {
 
         photoRepository.saveAll(photos);
         log.info("Sincronizate {} poze pentru eveniment {}", photos.size(), weddingId);
+
+        // Thumbnail-urile se genereaza in fundal, ca primii vizitatori sa nu astepte dupa ele
+        googleDriveService.warmThumbnailsAsync(photos.stream().map(Photo::getFileId).toList());
         return photos.size();
     }
 
+    @Transactional(readOnly = true)
     public GalleryResponseDto getGalleryByCode(String code) {
         Wedding wedding = getWeddingByCode(code);
-
-        List<Photo> photos = photoRepository.findByWedding(wedding);
-
-        List<PhotoDto> photoDtos = photos.stream()
-                .map(photo -> PhotoDto.builder()
-                        .id(photo.getId())
-                        .filename(photo.getFilename())
-                        .url(photo.getUrl())
-                        .thumbnailUrl(photo.getThumbnailUrl())
-                        .weddingId(wedding.getId())
-                        .fileId(photo.getFileId())
-                        .createdAt(photo.getCreatedAt())
-                        .build())
+        List<PhotoDto> photoDtos = photoRepository.findByWeddingOrderByFilenameAsc(wedding).stream()
+                .map(photo -> toDto(photo, wedding))
                 .collect(Collectors.toList());
 
         return GalleryResponseDto.builder()
@@ -118,25 +118,20 @@ public class WeddingService {
                 .description(wedding.getDescription())
                 .photos(photoDtos)
                 .totalPhotos(photoDtos.size())
+                .page(0)
+                .hasMore(false)
                 .build();
     }
 
+    @Transactional(readOnly = true)
     public GalleryResponseDto getGalleryByCodePaginated(String code, int page, int size) {
         Wedding wedding = getWeddingByCode(code);
 
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
-        org.springframework.data.domain.Page<Photo> photoPage = photoRepository.findByWedding(wedding, pageable);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), size, Sort.by("filename").ascending());
+        Page<Photo> photoPage = photoRepository.findByWedding(wedding, pageable);
 
         List<PhotoDto> photoDtos = photoPage.getContent().stream()
-                .map(photo -> PhotoDto.builder()
-                        .id(photo.getId())
-                        .filename(photo.getFilename())
-                        .url(photo.getUrl())
-                        .thumbnailUrl(photo.getThumbnailUrl())
-                        .weddingId(wedding.getId())
-                        .fileId(photo.getFileId())
-                        .createdAt(photo.getCreatedAt())
-                        .build())
+                .map(photo -> toDto(photo, wedding))
                 .collect(Collectors.toList());
 
         return GalleryResponseDto.builder()
@@ -146,7 +141,52 @@ public class WeddingService {
                 .description(wedding.getDescription())
                 .photos(photoDtos)
                 .totalPhotos((int) photoPage.getTotalElements())
+                .page(photoPage.getNumber())
+                .hasMore(photoPage.hasNext())
                 .build();
+    }
+
+    private PhotoDto toDto(Photo photo, Wedding wedding) {
+        return PhotoDto.builder()
+                .id(photo.getId())
+                .filename(photo.getFilename())
+                .url(photo.getUrl())
+                .thumbnailUrl(photo.getThumbnailUrl())
+                .weddingId(wedding.getId())
+                .fileId(photo.getFileId())
+                .createdAt(photo.getCreatedAt())
+                .build();
+    }
+
+    /**
+     * Verifica faptul ca toate fisierele cerute apartin galeriei cu codul dat.
+     * Returneaza lista de fisiere (fileId + nume) in ordinea ceruta, fara duplicate.
+     */
+    @Transactional(readOnly = true)
+    public List<Photo> getPhotosForDownload(String code, List<String> fileIds) {
+        Wedding wedding = getWeddingByCode(code);
+        Set<String> requested = new LinkedHashSet<>(fileIds);
+        Map<String, Photo> found = photoRepository.findByWeddingAndFileIdIn(wedding, requested).stream()
+                .collect(Collectors.toMap(Photo::getFileId, p -> p, (a, b) -> a));
+        if (found.size() != requested.size()) {
+            throw new IllegalArgumentException("Unele fotografii nu apartin acestei galerii.");
+        }
+        return requested.stream().map(found::get).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<Photo> getAllPhotosForCode(String code) {
+        return photoRepository.findByWeddingOrderByFilenameAsc(getWeddingByCode(code));
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isKnownPhoto(String fileId) {
+        return photoRepository.existsByFileId(fileId);
+    }
+
+    @Transactional(readOnly = true)
+    public String getPhotoFilename(String fileId) {
+        return photoRepository.findFirstByFileId(fileId).map(Photo::getFilename).orElse(null);
     }
 
     public Wedding getWeddingById(Long id) {
@@ -182,7 +222,13 @@ public class WeddingService {
     @Transactional
     public void deleteWedding(Long id) {
         Wedding wedding = getWeddingById(id);
+        List<String> fileIds = photoRepository.findByWeddingOrderByFilenameAsc(wedding).stream()
+                .map(Photo::getFileId)
+                .toList();
         weddingRepository.delete(wedding);
+        if (googleDriveService != null) {
+            googleDriveService.deleteCachedThumbnails(fileIds);
+        }
     }
 
     private String generateUniqueCode() {

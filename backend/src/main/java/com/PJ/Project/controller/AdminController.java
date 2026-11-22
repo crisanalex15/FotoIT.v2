@@ -46,7 +46,7 @@ public class AdminController {
             int count = weddingService.syncPhotosFromGoogleDrive(id);
             redirectAttributes.addFlashAttribute("success", 
                 "Sincronizate " + count + " poze cu succes!");
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             log.error("Eroare la sincronizare poze", e);
             redirectAttributes.addFlashAttribute("error", 
                 "Eroare la sincronizare: " + e.getMessage());

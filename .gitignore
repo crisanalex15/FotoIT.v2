@@ -24,3 +24,6 @@ cache/
 .DS_Store
 Thumbs.db
 
+
+# Variabile locale backend
+backend/local.env

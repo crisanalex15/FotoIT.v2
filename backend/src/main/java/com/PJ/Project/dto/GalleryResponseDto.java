@@ -19,5 +19,9 @@ public class GalleryResponseDto {
     private String description;
     private List<PhotoDto> photos;
     private int totalPhotos;
+    /** Pagina curenta (0 = prima). Pentru raspunsul nepaginat este 0. */
+    private int page;
+    /** Exista si alte pagini dupa aceasta */
+    private boolean hasMore;
 }
 
